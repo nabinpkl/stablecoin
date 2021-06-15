@@ -9,7 +9,7 @@ License:             Apache-2.0
 License-files:       LICENSE
 
 library
-  hs-source-dirs:      src examples/src
+  hs-source-dirs:      src
   exposed-modules:     Plutus.Contracts.CoinsStateMachine
                      
   build-depends:       aeson
@@ -76,7 +76,7 @@ test-suite plutus-use-cases-tests
                      , tasty-hunit
                      , tasty-expected-failure
                      , text
-  hs-source-dirs:      examples/test
+  hs-source-dirs:      src/test
   Main-is:             Spec.hs
   Other-modules:
                        Spec.StableCoinTest
