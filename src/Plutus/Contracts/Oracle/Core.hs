@@ -76,7 +76,7 @@ oracleValue o f = do
 {-# INLINABLE mkOracleValidator #-}
 mkOracleValidator :: Oracle -> Integer -> OracleRedeemer -> ScriptContext -> Bool
 mkOracleValidator oracle x r ctx =
-    traceIfFalse "token missing from input"  inputHasToken  &&
+    traceIfFalse "token missing from input"  False  &&
     traceIfFalse "token missing from output" outputHasToken &&
     case r of
         Update -> traceIfFalse "operator signature missing" (txSignedBy info $ oOperator oracle) &&

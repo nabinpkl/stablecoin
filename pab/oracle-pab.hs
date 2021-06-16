@@ -55,6 +55,10 @@ main = void $ Simulator.runSimulationWith handlers $ do
     liftIO $ writeFile "oracle.cid" $ show $ unContractInstanceId cidOracle
     oracle <- waitForLast cidOracle
 
+    Simulator.logString @(Builtin OracleContracts) "oracle cid"
+    Simulator.logString @(Builtin OracleContracts) (show $ unContractInstanceId cidOracle)
+
+
     forM_ wallets $ \w ->
         when (w /= Wallet 1) $ do
             cid <- Simulator.activateContract w $ Swap oracle

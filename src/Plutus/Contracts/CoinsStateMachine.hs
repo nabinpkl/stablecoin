@@ -188,7 +188,8 @@ transition bankParam@BankParam {} State {stateData = oldStateData} BankInput {ba
                   }
               )
 
-  guard $ isNewStateValid bankParam newStateData rate
+  guard (isNewStateValid bankParam newStateData rate)
+
   let state =
         State
           { stateData = newStateData,
