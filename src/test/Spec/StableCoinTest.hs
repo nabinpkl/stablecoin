@@ -18,7 +18,6 @@ import qualified Data.Map as Map
 import Data.Text
 import qualified Ledger.Ada as Ada
 import Ledger.Address (Address)
-import Ledger.Typed.Scripts (scriptAddress)
 import qualified Ledger.Typed.Scripts as Scripts
 import Ledger.Value (Value)
 import Ledger.Value as Value
@@ -33,6 +32,7 @@ import qualified PlutusTx.Prelude as PlutusTx
 import PlutusTx.Ratio as R
 import Test.Tasty
 import qualified Test.Tasty.HUnit as HUnit
+import qualified Prelude
 
 w1, w2 :: Wallet
 w1 = Wallet 1
@@ -65,19 +65,19 @@ bp =
     }
 
 coinsMachineAddress :: Address
-coinsMachineAddress = scriptAddress $ CoinsMachine.scriptInstance bp
+coinsMachineAddress = Scripts.validatorAddress $ CoinsMachine.scriptInstance bp
 
 initialAdaValue :: Value
 initialAdaValue = Ada.lovelaceValueOf 100
 
 reserveCoinsValue :: CoinsMachine.BankParam -> Integer -> Value
 reserveCoinsValue bankParam@CoinsMachine.BankParam {reserveCoinTokenName} tokenAmount =
-  let mpHash = Scripts.monetaryPolicyHash $ CoinsMachine.scriptInstance bankParam
+  let mpHash = Scripts.forwardingMonetaryPolicyHash $ CoinsMachine.scriptInstance bankParam
    in Value.singleton (Value.mpsSymbol mpHash) reserveCoinTokenName tokenAmount
 
 stableCoinsValue :: CoinsMachine.BankParam -> Integer -> Value
 stableCoinsValue bankParam@CoinsMachine.BankParam {stableCoinTokenName} tokenAmount =
-  let mpHash = Scripts.monetaryPolicyHash $ CoinsMachine.scriptInstance bankParam
+  let mpHash = Scripts.forwardingMonetaryPolicyHash $ CoinsMachine.scriptInstance bankParam
    in Value.singleton (Value.mpsSymbol mpHash) stableCoinTokenName tokenAmount
 
 tests :: TestTree
@@ -116,14 +116,11 @@ tests =
     --     )
     --     $ mintAndRedeemReserveCoins 10 5 1 1
     -- ,    
-        -- checkPredicate "mint stablecoins try redeem more stablecoins than minted should fail"
-        -- ( ( valueAtAddress coinsMachineAddress (== (Ada.lovelaceValueOf 5)))
-        --     .&&. assertFailedTransaction (\_ err _ -> False)
-        --     .&&. walletFundsChange w1 ((stableCoinsValue bp 10) <> (negate (Ada.lovelaceValueOf 10)))
-        -- )
-        -- $ mintAndRedeemStableCoins 10 15 1 1
-    
-
+        checkPredicate "mint stablecoins try redeem more stablecoins than minted should fail"
+        (  
+           assertContractError CoinsMachine.endpoints (Trace.walletInstanceTag w1) (\_ -> True) "should throw insufficent funds"
+        )
+        $ mintAndRedeemStableCoins 10 15 1 1
         
     ]
 
@@ -133,7 +130,7 @@ initialise = do
   let i = 5 :: Integer
   Trace.callEndpoint @"start" hdl i
   _ <- Trace.waitNSlots 2
-  Extras.logInfo @String "Callled initialise"
+  Extras.logInfo @Prelude.String "Callled initialise"
   return hdl
 
 mintStableCoins :: Integer -> Integer -> Integer -> Trace.EmulatorTrace ()

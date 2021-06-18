@@ -49,12 +49,12 @@ data Oracle = Oracle
     , oOperator :: !PubKeyHash
     , oFee      :: !Integer
     , oAsset    :: !AssetClass
-    } deriving (Show, Generic, FromJSON, ToJSON, Prelude.Eq, Prelude.Ord)
+    } deriving (Prelude.Show, Generic, FromJSON, ToJSON, Prelude.Eq, Prelude.Ord)
 
 PlutusTx.makeLift ''Oracle
 
 data OracleRedeemer = Update | Use
-    deriving Show
+    deriving Prelude.Show
 
 PlutusTx.unstableMakeIsData ''OracleRedeemer
 
@@ -118,12 +118,12 @@ mkOracleValidator oracle x r ctx =
         outVal `geq` (inVal <> Ada.lovelaceValueOf (oFee oracle))
 
 data Oracling
-instance Scripts.ScriptType Oracling where
+instance Scripts.ValidatorTypes Oracling where
     type instance DatumType Oracling = Integer
     type instance RedeemerType Oracling = OracleRedeemer
 
-oracleInst :: Oracle -> Scripts.ScriptInstance Oracling
-oracleInst oracle = Scripts.validator @Oracling
+oracleInst :: Oracle -> Scripts.TypedValidator Oracling
+oracleInst oracle = Scripts.mkTypedValidator @Oracling
     ($$(PlutusTx.compile [|| mkOracleValidator ||]) `PlutusTx.applyCode` PlutusTx.liftCode oracle)
     $$(PlutusTx.compile [|| wrap ||])
   where
@@ -139,12 +139,12 @@ data OracleParams = OracleParams
     { opFees   :: !Integer
     , opSymbol :: !CurrencySymbol
     , opToken  :: !TokenName
-    } deriving (Show, Generic, FromJSON, ToJSON)
+    } deriving (Prelude.Show, Generic, FromJSON, ToJSON)
 
 startOracle :: forall w s. HasBlockchainActions s => OracleParams -> Contract w s Text Oracle
 startOracle op = do
     pkh <- pubKeyHash <$> Contract.ownPubKey
-    osc <- mapError (pack . show) (forgeContract pkh [(oracleTokenName, 1)] :: Contract w s CurrencyError OneShotCurrency)
+    osc <- mapError (pack . Prelude.show) (forgeContract pkh [(oracleTokenName, 1)] :: Contract w s CurrencyError OneShotCurrency)
     let cs     = Currency.currencySymbol osc
         oracle = Oracle
             { oSymbol   = cs
@@ -152,7 +152,7 @@ startOracle op = do
             , oFee      = opFees op
             , oAsset    = AssetClass (opSymbol op, opToken op)
             }
-    logInfo @String $ "started oracle " ++ show oracle
+    logInfo @Prelude.String $ "started oracle " ++ Prelude.show oracle
     return oracle
 
 updateOracle :: forall w s. HasBlockchainActions s => Oracle -> Integer -> Contract w s Text ()
@@ -163,15 +163,15 @@ updateOracle oracle x = do
         Nothing -> do
             ledgerTx <- submitTxConstraints (oracleInst oracle) c
             awaitTxConfirmed $ txId ledgerTx
-            logInfo @String $ "set initial oracle value to " ++ show x
+            logInfo @Prelude.String $ "set initial oracle value to " ++ Prelude.show x
         Just (oref, o,  _) -> do
             let lookups = Constraints.unspentOutputs (Map.singleton oref o)     <>
-                          Constraints.scriptInstanceLookups (oracleInst oracle) <>
+                          Constraints.typedValidatorLookups (oracleInst oracle) <>
                           Constraints.otherScript (oracleValidator oracle)
                 tx      = c <> Constraints.mustSpendScriptOutput oref (Redeemer $ PlutusTx.toData Update)
             ledgerTx <- submitTxConstraintsWith @Oracling lookups tx
             awaitTxConfirmed $ txId ledgerTx
-            logInfo @String $ "updated oracle value to " ++ show x
+            logInfo @Prelude.String $ "updated oracle value to " ++ Prelude.show x
 
 findOracle :: forall w s. HasBlockchainActions s => Oracle -> Contract w s Text (Maybe (TxOutRef, TxOutTx, Integer))
 findOracle oracle = do

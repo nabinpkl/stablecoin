@@ -54,6 +54,7 @@ main =
 
 
     w1cid <- Simulator.activateContract (Wallet 1) TokenContract
+
         
     Simulator.logString @(Builtin TokenContracts) "Contract starting by wallet 1"
 

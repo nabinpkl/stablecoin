@@ -15,6 +15,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE NoImplicitPrelude #-}
+{-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -fno-ignore-interface-pragmas #-}
 {-# OPTIONS_GHC -fno-strictness #-}
 {-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:debug-context #-}
@@ -42,19 +43,13 @@ import qualified Ledger as Interval
 import qualified Ledger.Ada as Ada
 import Ledger.Constraints (TxConstraints)
 import qualified Ledger.Constraints as Constraints
-import Ledger.Oracle
-  ( Observation (Observation, obsSlot, obsValue),
-    SignedMessage,
-    verifySignedMessageConstraints,
-  )
-import Ledger.Typed.Scripts (scriptHash)
+import           Ledger.Scripts               (MonetaryPolicyHash)
 import qualified Ledger.Typed.Scripts as Scripts
-import Ledger.Typed.Scripts.Validators (forwardingMPS)
 import qualified Ledger.Value as Value
 import Playground.Contract (ToSchema, adaCurrency, ensureKnownCurrencies, printJson, printSchemas, stage)
 import Playground.TH (mkKnownCurrencies, mkSchemaDefinitions)
 import Plutus.Contract
-import Plutus.Contract.StateMachine (SMContractError, State (..), StateMachine, StateMachineClient (..), StateMachineInstance (..), Void)
+import Plutus.Contract.StateMachine (SMContractError, State (..), StateMachine, StateMachineClient (..), Void)
 import qualified Plutus.Contract.StateMachine as SM
 import qualified PlutusTx as PlutusTx
 import PlutusTx.Prelude
@@ -188,7 +183,7 @@ transition bankParam@BankParam {} State {stateData = oldStateData} BankInput {ba
                   }
               )
 
-  guard (isNewStateValid bankParam newStateData rate)
+  -- guard (isNewStateValid bankParam newStateData rate)
 
   let state =
         State
@@ -250,35 +245,35 @@ data ErrorState
   | MaxReserves {allowed :: Ratio Integer, actual :: Ratio Integer}
   | NegativeLiabilities
   | NegativeEquity
-  deriving (Show)
+  deriving (Prelude.Show)
 
 bankMachine :: BankParam -> StateMachine BankState BankInput
 bankMachine bankParam = SM.mkStateMachine Nothing (transition bankParam) isFinal
   where
     isFinal _ = False
 
-scriptInstance :: BankParam -> Scripts.ScriptInstance (StateMachine BankState BankInput)
+scriptInstance :: BankParam -> Scripts.TypedValidator (StateMachine BankState BankInput)
 scriptInstance bankParam =
   let val = $$(PlutusTx.compile [||validator||]) `PlutusTx.applyCode` PlutusTx.liftCode bankParam
       validator param = SM.mkValidator (bankMachine param)
       wrap = Scripts.wrapValidator @BankState @BankInput
-   in Scripts.validator @(StateMachine BankState BankInput) val $$(PlutusTx.compile [||wrap||])
+   in Scripts.mkTypedValidator @(StateMachine BankState BankInput) val $$(PlutusTx.compile [||wrap||])
 
 machineClient ::
-  Scripts.ScriptInstance (StateMachine BankState BankInput) ->
+  Scripts.TypedValidator (StateMachine BankState BankInput) ->
   BankParam ->
   StateMachineClient BankState BankInput
 machineClient scriptInst bankParam =
   let machine = bankMachine bankParam
-   in SM.mkStateMachineClient (StateMachineInstance machine scriptInst)
+   in SM.mkStateMachineClient (SM.StateMachineInstance machine scriptInst)
 
 initialState :: StateMachineClient BankState BankInput -> BankState
-initialState StateMachineClient {scInstance = StateMachineInstance {validatorInstance}} =
+initialState StateMachineClient {scInstance = SM.StateMachineInstance {SM.typedValidator}} =
   BankState
     { baseReserveAmount = 0,
       stableCoinAmount = 0,
       reserveCoinAmount = 0,
-      policyScript = monetaryPolicyHash $ forwardingMPS $ scriptHash validatorInstance
+      policyScript = Scripts.forwardingMonetaryPolicyHash typedValidator
     }
 
 data BankStateError
@@ -308,7 +303,7 @@ client :: StateMachineClient BankState BankInput
 client = machineClient (scriptInstance bp) bp
 
 mapError' :: Contract w s SMContractError a -> Contract w s Text a
-mapError' = mapError $ pack . show
+mapError' = mapError $ pack . Prelude.show
 
 start :: HasBlockchainActions s => Integer -> Contract w s Text ()
 start _ = do
