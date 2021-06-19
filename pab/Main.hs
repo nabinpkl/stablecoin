@@ -45,32 +45,36 @@ import qualified Ledger.Value                        as Value
 import qualified Plutus.Contracts.Currency as Currency
 
 import qualified Plutus.Contracts.CoinsStateMachine as StableCoin
+import qualified Plutus.Contracts.OracleContract.Core       as OracleCore
 
 main :: IO ()
 main =  
     void $ Simulator.runSimulationWith handlers $ do 
-    Simulator.logString @(Builtin TokenContracts) "Starting plutus-starter PAB webserver on port 8080. Press enter to exit."
+    Simulator.logString @(Builtin StableContracts) "Starting plutus-starter PAB webserver on port 8080. Press enter to exit."
     shutdown <- PAB.Server.startServerDebug
 
+    cidOracle <- Simulator.activateContract (Wallet 1) OracleContract
+    oracle <- waitForLast cidOracle
 
-    w1cid <- Simulator.activateContract (Wallet 1) TokenContract
 
-        
-    Simulator.logString @(Builtin TokenContracts) "Contract starting by wallet 1"
+    Simulator.logString @(Builtin StableContracts) "Called oracle contract"
 
+    w1cid <- Simulator.activateContract (Wallet 1) StableContract        
+    Simulator.logString @(Builtin StableContracts) "Contract starting by wallet 1"
+
+    --TODO start on init contract instead of endpoint
     let i = 1 :: Integer
     _ <- Simulator.callEndpointOnInstance w1cid "start" i
 
-
-    forM_ wallets $ \w -> do
-            cid <- Simulator.activateContract w  TokenContract
-            liftIO $ writeFile ('W' : show (getWallet w) ++ ".cid") $ show $ unContractInstanceId cid
+    -- forM_ wallets $ \w -> do
+    --         cid <- Simulator.activateContract w  StableContract
+    --         liftIO $ writeFile ('W' : show (getWallet w) ++ ".cid") $ show $ unContractInstanceId cid
     
     void $ liftIO getLine
     
-    Simulator.logString @(Builtin TokenContracts) "Balances at the end of the simulation"
+    Simulator.logString @(Builtin StableContracts) "Balances at the end of the simulation"
     b <- Simulator.currentBalances
-    Simulator.logBalances @(Builtin TokenContracts) b
+    Simulator.logBalances @(Builtin StableContracts) b
 
     shutdown
 
@@ -81,17 +85,17 @@ waitForLast cid =
         Success (Monoid.Last (Just x)) -> Just x
         _                       -> Nothing
 
-data TokenContracts = TokenContract
+data StableContracts = StableContract | OracleContract
     deriving (Eq, Ord, Show, Generic)
 
-instance ToJSON TokenContracts where
+instance ToJSON StableContracts where
   toJSON = genericToJSON defaultOptions {
              tagSingleConstructors = True }
-instance FromJSON TokenContracts where
+instance FromJSON StableContracts where
   parseJSON = genericParseJSON defaultOptions {
              tagSingleConstructors = True }
 
-instance Pretty TokenContracts where
+instance Pretty StableContracts where
     pretty = viaShow
 
 wallets :: [Wallet]
@@ -99,17 +103,19 @@ wallets = [Wallet i | i <- [2 .. 4]]
 
 handleTokenContract ::
     ( Member (Error PABError) effs
-    , Member (LogMsg (PABMultiAgentMsg (Builtin TokenContracts))) effs
+    , Member (LogMsg (PABMultiAgentMsg (Builtin StableContracts))) effs
     )
-    => ContractEffect (Builtin TokenContracts)
+    => ContractEffect (Builtin StableContracts)
     ~> Eff effs
 handleTokenContract = Builtin.handleBuiltin getSchema getContract where
     getSchema = \case
-      TokenContract -> Builtin.endpointsToSchemas @(StableCoin.BankStateSchema .\\ BlockchainActions)
+      StableContract -> Builtin.endpointsToSchemas @(StableCoin.BankStateSchema .\\ BlockchainActions)
+      OracleContract         -> Builtin.endpointsToSchemas @(OracleCore.OracleSchema        .\\ BlockchainActions)
     getContract = \case
-      TokenContract -> SomeBuiltin StableCoin.endpoints
+      StableContract -> SomeBuiltin StableCoin.endpoints
+      OracleContract         -> SomeBuiltin $ OracleCore.runOracle
 
-handlers :: SimulatorEffectHandlers (Builtin TokenContracts)
+handlers :: SimulatorEffectHandlers (Builtin StableContracts)
 handlers =
-    Simulator.mkSimulatorHandlers @(Builtin TokenContracts) [] 
+    Simulator.mkSimulatorHandlers @(Builtin StableContracts) [] 
     $ interpret handleTokenContract

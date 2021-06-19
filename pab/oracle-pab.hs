@@ -72,8 +72,8 @@ usdt = "USDT"
 oracleParams :: CurrencySymbol -> Oracle.OracleParams
 oracleParams cs = Oracle.OracleParams
     { Oracle.opFees   = 1_000_000
-    , Oracle.opSymbol = cs
-    , Oracle.opToken  = usdt
+    -- , Oracle.opSymbol = cs
+    -- , Oracle.opToken  = usdt
     }
 
 handleOracleContracts ::
