@@ -47,6 +47,7 @@ executable stablecoin-pab
                      , plutus-pab
                      , req ^>= 3.9.0
                      , text -any
+                     , bytestring
                      , uuid
                      , containers
                      , freer-extras

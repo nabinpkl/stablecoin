@@ -116,84 +116,84 @@ tests =
     --     )
     --     $ mintAndRedeemReserveCoins 10 5 1 1
     -- ,    
-        checkPredicate "mint stablecoins try redeem more stablecoins than minted should fail"
-        (  
-           assertContractError CoinsMachine.endpoints (Trace.walletInstanceTag w1) (\_ -> True) "should throw insufficent funds"
-        )
-        $ mintAndRedeemStableCoins 10 15 1 1
+        -- checkPredicate "mint stablecoins try redeem more stablecoins than minted should fail"
+        -- (  
+        --    assertContractError CoinsMachine.endpoints (Trace.walletInstanceTag w1) (\_ -> True) "should throw insufficent funds"
+        -- )
+        -- $ mintAndRedeemStableCoins 10 15 1 1
         
     ]
 
-initialise :: Trace.EmulatorTrace (Trace.ContractHandle () CoinsMachine.BankStateSchema Text)
-initialise = do
-  hdl <- Trace.activateContractWallet w1 CoinsMachine.endpoints
-  let i = 5 :: Integer
-  Trace.callEndpoint @"start" hdl i
-  _ <- Trace.waitNSlots 2
-  Extras.logInfo @Prelude.String "Callled initialise"
-  return hdl
+-- initialise :: Trace.EmulatorTrace (Trace.ContractHandle () CoinsMachine.BankStateSchema Text)
+-- initialise = do
+--   hdl <- Trace.activateContractWallet w1 CoinsMachine.endpoints
+--   let i = 5 :: Integer
+--   Trace.callEndpoint @"start" hdl i
+--   _ <- Trace.waitNSlots 2
+--   Extras.logInfo @Prelude.String "Callled initialise"
+--   return hdl
 
-mintStableCoins :: Integer -> Integer -> Integer -> Trace.EmulatorTrace ()
-mintStableCoins tokenAmount rateNume rateDeno = do
-  hdl <- initialise
-  Trace.callEndpoint @"mintStableCoin"
-    hdl
-    CoinsMachine.EndpointInput
-      { rateNume = rateNume,
-        rateDeno = rateDeno,
-        tokenAmount = tokenAmount
-      }
-  void $ Trace.waitNSlots 2
+-- mintStableCoins :: Integer -> Integer -> Integer -> Trace.EmulatorTrace ()
+-- mintStableCoins tokenAmount rateNume rateDeno = do
+--   hdl <- initialise
+--   Trace.callEndpoint @"mintStableCoin"
+--     hdl
+--     CoinsMachine.EndpointInput
+--       { rateNume = rateNume,
+--         rateDeno = rateDeno,
+--         tokenAmount = tokenAmount
+--       }
+--   void $ Trace.waitNSlots 2
 
-mintReserveCoins :: Integer -> Integer -> Integer -> Trace.EmulatorTrace ()
-mintReserveCoins tokenAmount rateNume rateDeno = do
-  hdl <- initialise
-  Trace.callEndpoint @"mintReserveCoin"
-    hdl
-    CoinsMachine.EndpointInput
-      { rateNume = rateNume,
-        rateDeno = rateDeno,
-        tokenAmount = tokenAmount
-      }
-  void $ Trace.waitNSlots 2
+-- mintReserveCoins :: Integer -> Integer -> Integer -> Trace.EmulatorTrace ()
+-- mintReserveCoins tokenAmount rateNume rateDeno = do
+--   hdl <- initialise
+--   Trace.callEndpoint @"mintReserveCoin"
+--     hdl
+--     CoinsMachine.EndpointInput
+--       { rateNume = rateNume,
+--         rateDeno = rateDeno,
+--         tokenAmount = tokenAmount
+--       }
+--   void $ Trace.waitNSlots 2
 
 
-mintAndRedeemStableCoins :: Integer -> Integer -> Integer -> Integer -> Trace.EmulatorTrace ()
-mintAndRedeemStableCoins tokenAmountToMint tokenAmountToRedeem rateNume rateDeno = do
-  hdl <- initialise
-  Trace.callEndpoint @"mintStableCoin"
-    hdl
-    CoinsMachine.EndpointInput
-      { rateNume = rateNume,
-        rateDeno = rateDeno,
-        tokenAmount = tokenAmountToMint
-      }
-  void $ Trace.waitNSlots 2  
-  Trace.callEndpoint @"redeemStableCoin"
-      hdl
-      CoinsMachine.EndpointInput
-        { rateNume = rateNume,
-          rateDeno = rateDeno,
-          tokenAmount = tokenAmountToRedeem
-        }
-  void $ Trace.waitNSlots 2
+-- mintAndRedeemStableCoins :: Integer -> Integer -> Integer -> Integer -> Trace.EmulatorTrace ()
+-- mintAndRedeemStableCoins tokenAmountToMint tokenAmountToRedeem rateNume rateDeno = do
+--   hdl <- initialise
+--   Trace.callEndpoint @"mintStableCoin"
+--     hdl
+--     CoinsMachine.EndpointInput
+--       { rateNume = rateNume,
+--         rateDeno = rateDeno,
+--         tokenAmount = tokenAmountToMint
+--       }
+--   void $ Trace.waitNSlots 2  
+--   Trace.callEndpoint @"redeemStableCoin"
+--       hdl
+--       CoinsMachine.EndpointInput
+--         { rateNume = rateNume,
+--           rateDeno = rateDeno,
+--           tokenAmount = tokenAmountToRedeem
+--         }
+--   void $ Trace.waitNSlots 2
 
-mintAndRedeemReserveCoins :: Integer -> Integer -> Integer -> Integer -> Trace.EmulatorTrace ()
-mintAndRedeemReserveCoins tokenAmountToMint tokenAmountToRedeem rateNume rateDeno = do
-  hdl <- initialise
-  Trace.callEndpoint @"mintReserveCoin"
-    hdl
-    CoinsMachine.EndpointInput
-      { rateNume = rateNume,
-        rateDeno = rateDeno,
-        tokenAmount = tokenAmountToMint
-      }
-  void $ Trace.waitNSlots 2  
-  Trace.callEndpoint @"redeemReserveCoin"
-      hdl
-      CoinsMachine.EndpointInput
-        { rateNume = rateNume,
-          rateDeno = rateDeno,
-          tokenAmount = tokenAmountToRedeem
-        }
-  void $ Trace.waitNSlots 2
+-- mintAndRedeemReserveCoins :: Integer -> Integer -> Integer -> Integer -> Trace.EmulatorTrace ()
+-- mintAndRedeemReserveCoins tokenAmountToMint tokenAmountToRedeem rateNume rateDeno = do
+--   hdl <- initialise
+--   Trace.callEndpoint @"mintReserveCoin"
+--     hdl
+--     CoinsMachine.EndpointInput
+--       { rateNume = rateNume,
+--         rateDeno = rateDeno,
+--         tokenAmount = tokenAmountToMint
+--       }
+--   void $ Trace.waitNSlots 2  
+--   Trace.callEndpoint @"redeemReserveCoin"
+--       hdl
+--       CoinsMachine.EndpointInput
+--         { rateNume = rateNume,
+--           rateDeno = rateDeno,
+--           tokenAmount = tokenAmountToRedeem
+--         }
+--   void $ Trace.waitNSlots 2
