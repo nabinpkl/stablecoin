@@ -44,7 +44,8 @@ executable stablecoin-pab
                      , base ^>= 4.14.1.0
                      , lens
                      , plutus-ledger
-                     , plutus-pab
+                     , plutus-pab         
+                     , plutus-tx
                      , req ^>= 3.9.0
                      , text -any
                      , bytestring
@@ -106,6 +107,7 @@ test-suite plutus-use-cases-tests
                      , tasty-hunit
                      , tasty-expected-failure
                      , text
+                     , foldl
   hs-source-dirs:      src/test
   Main-is:             Spec.hs
   Other-modules:

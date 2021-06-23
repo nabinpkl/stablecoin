@@ -25,6 +25,7 @@ module Plutus.Contracts.Oracle.Core
     , OracleSchema
     , OracleParams (..)
     , runOracle
+    , runMockOracle
     , findOracle
     ) where
 
@@ -50,10 +51,11 @@ data Oracle = Oracle
     { oNftSymbol   :: !CurrencySymbol
     , oOperator    :: !PubKeyHash
     , oFee         :: !Integer
-    -- , opSymbol     :: !CurrencySymbol
     } deriving (Prelude.Show, Generic, FromJSON, ToJSON, Prelude.Eq, Prelude.Ord)
 
 PlutusTx.makeLift ''Oracle
+PlutusTx.unstableMakeIsData ''Oracle
+
 
 data OracleRedeemer = Update | Use
     deriving Prelude.Show
@@ -152,7 +154,6 @@ startOracle = do
             { oNftSymbol   = cs
             , oOperator = pkh
             , oFee      = 1_000_000
-            -- , opSymbol  = opSymbol op
             }
     logInfo @Prelude.String $ "started oracle " ++ Prelude.show oracle
     return oracle
@@ -200,3 +201,13 @@ runOracle = do
         x <- endpoint @"update"
         updateOracle oracle x
         go oracle
+
+runMockOracle :: Oracle -> Contract () OracleSchema Text ()
+runMockOracle oracle = do
+    go oracle
+  where
+    go :: Oracle -> Contract () OracleSchema Text a
+    go oracle' = do
+        x <- endpoint @"update"
+        updateOracle oracle' x
+        go oracle'

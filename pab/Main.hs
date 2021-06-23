@@ -45,8 +45,11 @@ import qualified Ledger.Value                        as Value
 import qualified Plutus.Contracts.Currency as Currency
 
 import qualified Plutus.Contracts.CoinsStateMachine as StableCoin
+import Plutus.Contracts.CoinsStateMachine (BankParam (..))
 import qualified Plutus.Contracts.Oracle.Core       as OracleCore
 import qualified Data.ByteString.Lazy                as LB
+import PlutusTx.Ratio as Ratio
+import qualified PlutusTx.Numeric  as P
 
 main :: IO ()
 main =  
@@ -62,7 +65,17 @@ main =
  
     Simulator.logString @(Builtin StableContracts) $ "Started oracle contract" ++ show oracle
 
-    w1cid <- Simulator.activateContract (Wallet 1) $ StableContract oracle
+    let bp =
+          BankParam
+            { stableCoinTokenName = stableCoinName,
+            reserveCoinTokenName = reserveCoinName,
+            minReserveRatio = P.zero,
+            maxReserveRatio = 4 % 1,
+            rcDefaultRate = 1000000,
+            oracleParam = oracle
+            }
+
+    w1cid <- Simulator.activateContract (Wallet 1) $ StableContract bp
     Simulator.logString @(Builtin StableContracts) "Contract starting by wallet 1"
 
     --Remove integer from start end 
@@ -70,7 +83,7 @@ main =
     _ <- Simulator.callEndpointOnInstance w1cid "start" i
 
     forM_ wallets $ \w -> do
-            cid <- Simulator.activateContract w  $ StableContract oracle
+            cid <- Simulator.activateContract w  $ StableContract bp
             liftIO $ writeFile ('W' : show (getWallet w) ++ ".cid") $ show $ unContractInstanceId cid
     
     void $ liftIO getLine
@@ -88,7 +101,7 @@ waitForLast cid =
         Success (Monoid.Last (Just x)) -> Just x
         _                       -> Nothing
 
-data StableContracts = StableContract OracleCore.Oracle | OracleContract
+data StableContracts = StableContract StableCoin.BankParam | OracleContract
     deriving (Eq, Ord, Show, Generic)
 
 instance ToJSON StableContracts where
@@ -104,6 +117,13 @@ instance Pretty StableContracts where
 wallets :: [Wallet]
 wallets = [Wallet i | i <- [2 .. 4]]
 
+stableCoinName :: TokenName
+stableCoinName = "StableToken"
+
+reserveCoinName :: TokenName
+reserveCoinName = "ReserveToken"
+
+
 handleTokenContract ::
     ( Member (Error PABError) effs
     , Member (LogMsg (PABMultiAgentMsg (Builtin StableContracts))) effs
@@ -116,7 +136,7 @@ handleTokenContract = Builtin.handleBuiltin getSchema getContract where
       StableContract _ -> Builtin.endpointsToSchemas @(StableCoin.BankStateSchema .\\ BlockchainActions)
     getContract = \case
       OracleContract         -> SomeBuiltin $ OracleCore.runOracle
-      StableContract oracle-> SomeBuiltin $ StableCoin.endpoints oracle
+      StableContract bankParam-> SomeBuiltin $ StableCoin.endpoints bankParam
 
 handlers :: SimulatorEffectHandlers (Builtin StableContracts)
 handlers =
