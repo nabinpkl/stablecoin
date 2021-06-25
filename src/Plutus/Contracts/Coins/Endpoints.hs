@@ -24,12 +24,32 @@ module Plutus.Contracts.Coins.Endpoints
   ( 
     BankStateSchema,
     coinsContract,
-
   )
 where
 
+import Control.Monad (void)
+import           Ledger.Scripts                   (MonetaryPolicyHash)
+import           Plutus.Contract.StateMachine     (SMContractError, StateMachineClient (..))
+import qualified Plutus.Contract.StateMachine     as SM
+import           Plutus.Contract
+import qualified Prelude
+import           PlutusTx.Prelude
+import           Playground.TH                     (mkKnownCurrencies, mkSchemaDefinitions)
+import           Data.Text                         (Text, pack)
+import qualified Ledger.Typed.Scripts              as Scripts
+import Ledger hiding (to)
+import Prelude (show)
+import           Plutus.Contracts.Coins.Types
+import           Plutus.Contracts.Coins.CoinsStateMachine
+import           Plutus.Contracts.Oracle.Core
+
+import qualified Data.Map as Map
+import qualified Data.Aeson.Types as Types
+import Data.Aeson (toJSON)
+import Ledger.Value (flattenValue )
+
 forwardMPS :: StateMachineClient CoinsMachineState BankInput -> MonetaryPolicyHash
-forwardMPS StateMachineClient {scInstance} = Scripts.forwardingMonetaryPolicyHash $ typedValidator scInstace
+forwardMPS StateMachineClient {scInstance} = Scripts.forwardingMonetaryPolicyHash $ SM.typedValidator scInstance
 
 initialState :: StateMachineClient CoinsMachineState BankInput -> CoinsMachineState
 initialState smClient =
@@ -37,7 +57,7 @@ initialState smClient =
     { baseReserveAmount = 0,
       stableCoinAmount = 0,
       reserveCoinAmount = 0,
-      policyScript = forwardMps smClient
+      policyScript = forwardMPS smClient
     }
 
 mapError' :: Contract w s SMContractError a -> Contract w s Text a
@@ -83,13 +103,6 @@ mintReserveCoin bankParam endpointInput@EndpointInput {tokenAmount} = smRunStep 
 redeemReserveCoin :: HasBlockchainActions s => BankParam -> EndpointInput -> Contract w s Text ()
 redeemReserveCoin bankParam endpointInput@EndpointInput {tokenAmount} = smRunStep bankParam $ RedeemReserveCoin tokenAmount
 
-data EndpointInput = EndpointInput
-  { 
-    tokenAmount :: Integer
-  }
-  deriving stock (Generic, Prelude.Eq, Prelude.Show)
-  deriving anyclass (ToJSON, FromJSON, ToSchema)
-
 type BankStateSchema =
   BlockchainActions
     .\/ Endpoint "start" Integer
@@ -97,16 +110,18 @@ type BankStateSchema =
     .\/ Endpoint "redeemStableCoin" EndpointInput
     .\/ Endpoint "mintReserveCoin" EndpointInput
     .\/ Endpoint "redeemReserveCoin" EndpointInput
+    .\/ Endpoint "funds" Prelude.String
 
 mkSchemaDefinitions ''BankStateSchema
 
-coinsContract :: BankParam -> Contract () BankStateSchema Text ()
+coinsContract :: BankParam -> Contract [Types.Value ] BankStateSchema Text ()
 coinsContract bankParam =
   ( start'
       `select` mintStableCoin'
       `select` redeemStableCoin'
       `select` mintReserveCoin'
       `select` redeemReserveCoin'
+      `select` ownFunds'
   )
     >> coinsContract bankParam
   where
@@ -116,3 +131,13 @@ coinsContract bankParam =
     redeemStableCoin' = endpoint @"redeemStableCoin" >>= redeemStableCoin bankParam
     mintReserveCoin' = endpoint @"mintReserveCoin" >>= mintReserveCoin bankParam
     redeemReserveCoin' = endpoint @"redeemReserveCoin" >>= redeemReserveCoin bankParam
+    ownFunds' = endpoint @"funds" >> ownFunds bankParam
+
+
+ownFunds:: HasBlockchainActions s => BankParam -> Contract [Types.Value ] s Text  ()
+ownFunds _ = do
+    pk    <- ownPubKey
+    utxos <- utxoAt $ pubKeyAddress pk
+    let v = mconcat $ Map.elems $ txOutValue . txOutTxOut Prelude.<$> utxos
+    logInfo @Prelude.String $ "own funds: " ++ show (flattenValue v)
+    tell [ toJSON v]
