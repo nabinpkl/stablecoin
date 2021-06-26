@@ -71,7 +71,8 @@ bp = BankParam
             minReserveRatio = P.zero,
             maxReserveRatio = 4 % 1,
             rcDefaultRate = 1,
-            oracleParam = oracle
+            oracleParam = oracle,
+            oracleAddr = oracleAddress oracle
             }
 
 address :: Address

@@ -118,6 +118,7 @@ type BankStateSchema =
     .\/ Endpoint "pegRate" Prelude.String
     .\/ Endpoint "stableRate" Prelude.String
     .\/ Endpoint "reserveRate" Prelude.String
+    .\/ Endpoint "currentRates" Prelude.String
 
 mkSchemaDefinitions ''BankStateSchema
 
@@ -134,6 +135,7 @@ coinsContract bankParam =
       `select` pegToLovRate'
       `select` stableToLovRate'
       `select` reserveToLovRate'
+      `select` currentRates'
   )
     >> coinsContract bankParam
   where
@@ -149,6 +151,7 @@ coinsContract bankParam =
     pegToLovRate' = endpoint @"pegRate" >> currentPegToLovelaceRate bankParam
     stableToLovRate' = endpoint @"stableRate" >> currentStableToLovelaceRate bankParam
     reserveToLovRate' = endpoint @"reserveRate" >> currentReserveToLovelaceRate bankParam
+    currentRates' = endpoint @"currentRates" >> currentRates bankParam
 
 
 ownFunds:: HasBlockchainActions s => BankParam -> Contract [Types.Value ] s Text  ()
@@ -213,4 +216,26 @@ currentReserveToLovelaceRate bankParam = do
               logInfo @Prelude.String $ "Current state: " ++ show state
               let rcRate = calcReserveCoinRate bankParam state rate
               tell [toJSON rcRate]
+          Nothing -> logWarn @Prelude.String $ "Current state is not present yet."
+
+currentRates :: HasBlockchainActions s => BankParam -> Contract [Types.Value ] s Text  ()
+currentRates bankParam = do
+  oracle <- findOracle $ oracleParam bankParam
+  case oracle of
+    Nothing -> logWarn @Prelude.String "Oracle not found"
+    Just (oref, o, rate) -> do
+      currentState <- mapError' $ currentState bankParam
+      case currentState of
+          Just ((TypedScriptTxOut{tyTxOutData=state},_),_) -> do
+              logInfo @Prelude.String $ "Current state: " ++ show state
+              let rcRate = calcReserveCoinRate bankParam state rate
+                  scRate = calcStableCoinRate state rate
+
+                  ratesResponse = RatesResponse 
+                                  {
+                                        pegRate = rate,
+                                        scRate = scRate,
+                                        rcRate = rcRate
+                                  }
+              tell [toJSON ratesResponse]
           Nothing -> logWarn @Prelude.String $ "Current state is not present yet."

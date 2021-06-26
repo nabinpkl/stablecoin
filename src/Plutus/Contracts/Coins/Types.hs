@@ -27,6 +27,7 @@ module Plutus.Contracts.Coins.Types
     BankInput (..),
     BankInputAction (..),
     EndpointInput (..),
+    RatesResponse (..),
   )
 where
 
@@ -60,7 +61,8 @@ data BankParam = BankParam
     minReserveRatio :: Ratio Integer,
     maxReserveRatio :: Ratio Integer,
     rcDefaultRate :: Integer,
-    oracleParam :: Oracle
+    oracleParam :: Oracle,
+    oracleAddr :: Address
   }
   deriving stock (Generic, Prelude.Ord, Prelude.Eq, Prelude.Show)
   deriving anyclass (ToJSON, FromJSON)
@@ -90,6 +92,16 @@ data EndpointInput = EndpointInput
   }
   deriving stock (Generic, Prelude.Eq, Prelude.Show)
   deriving anyclass (ToJSON, FromJSON, ToSchema)
+
+data RatesResponse = RatesResponse
+  { 
+    pegRate :: Integer,
+    scRate :: Integer,
+    rcRate :: Integer
+  }
+  deriving stock (Generic, Prelude.Eq, Prelude.Show)
+  deriving anyclass (ToJSON, FromJSON)
+
 
 PlutusTx.makeLift ''CoinsMachineState
 PlutusTx.makeLift ''BankParam
