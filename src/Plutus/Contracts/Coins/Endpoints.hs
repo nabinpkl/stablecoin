@@ -115,9 +115,9 @@ type BankStateSchema =
 
     .\/ Endpoint "funds" Prelude.String
     .\/ Endpoint "currentState" Prelude.String
-    .\/ Endpoint "pegToLovRate" Prelude.String
-    .\/ Endpoint "stableToLovRate" Prelude.String
-    .\/ Endpoint "reserveToLovRate" Prelude.String
+    .\/ Endpoint "pegRate" Prelude.String
+    .\/ Endpoint "stableRate" Prelude.String
+    .\/ Endpoint "reserveRate" Prelude.String
 
 mkSchemaDefinitions ''BankStateSchema
 
@@ -146,9 +146,9 @@ coinsContract bankParam =
     
     ownFunds' = endpoint @"funds" >> ownFunds bankParam
     currentState' = endpoint @"currentState" >> currentCoinsState bankParam
-    pegToLovRate' = endpoint @"pegToLovRate" >> currentPegToLovelaceRate bankParam
-    stableToLovRate' = endpoint @"stableToLovRate" >> currentStableToLovelaceRate bankParam
-    reserveToLovRate' = endpoint @"reserveToLovRate" >> currentReserveToLovelaceRate bankParam
+    pegToLovRate' = endpoint @"pegRate" >> currentPegToLovelaceRate bankParam
+    stableToLovRate' = endpoint @"stableRate" >> currentStableToLovelaceRate bankParam
+    reserveToLovRate' = endpoint @"reserveRate" >> currentReserveToLovelaceRate bankParam
 
 
 ownFunds:: HasBlockchainActions s => BankParam -> Contract [Types.Value ] s Text  ()
