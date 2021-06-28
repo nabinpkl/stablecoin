@@ -67,34 +67,37 @@ lovelaces = Ada.getLovelace . Ada.fromValue
 --TODO fee calculation
 {-# INLINEABLE transition #-}
 transition :: BankParam -> State CoinsMachineState -> BankInput -> Maybe (TxConstraints Void Void, State CoinsMachineState)
-transition bankParam@BankParam {oracleParam} State {stateData = oldStateData} BankInput {bankInputAction, oracleOutput} = do
---TODO combine oracle constraints
+transition bankParam@BankParam {oracleParam,oracleAddr} State {stateData = oldStateData} BankInput {bankInputAction, oracleOutput} = do
   let (oref, oTxOut, rate) = oracleOutput
-      oNftValue = txOutValue oTxOut <> Ada.lovelaceValueOf (oFee oracleParam)
-      oracleConstraints = Constraints.mustSpendScriptOutput oref (Redeemer $ PlutusTx.toData Use) <>
+      oValHash = toValidatorHash oracleAddr
+  case oValHash of
+    Nothing -> traceError "Invalid oracle validator hash"
+    Just valHash-> do
+      let oNftValue = txOutValue oTxOut <> Ada.lovelaceValueOf (oFee oracleParam)
+          oracleConstraints = Constraints.mustSpendScriptOutput oref (Redeemer $ PlutusTx.toData Use) <>
                           Constraints.mustPayToOtherScript
-                            (validatorHash $ oracleValidator oracleParam)
+                            valHash
                             (Datum $ PlutusTx.toData rate)
                             oNftValue
+          rcRate = calcReserveCoinRate bankParam oldStateData rate
+          scRate = calcStableCoinRate oldStateData rate
+          (newConstraints, newStateData) = stateWithConstraints bankParam oldStateData bankInputAction scRate rcRate
+          eitherValidState = isNewStateValid bankParam newStateData rate
+        
+      guard (isRight eitherValidState)
 
-  let rcRate = calcReserveCoinRate bankParam oldStateData rate
-      scRate = calcStableCoinRate oldStateData rate
-      (newConstraints, newStateData) = stateWithConstraints bankParam oldStateData bankInputAction scRate rcRate
-      eitherValidState = isNewStateValid bankParam newStateData rate
-  
-  guard (isRight eitherValidState)
+      let state =
+            State
+              { stateData = newStateData,
+                stateValue = Ada.lovelaceValueOf (baseReserveAmount newStateData)
+              }
 
-  let state =
-        State
-          { stateData = newStateData,
-            stateValue = Ada.lovelaceValueOf (baseReserveAmount newStateData)
-          }
-
-  pure
-    ( newConstraints,
-      -- <> oracleConstraints,
-      state
-    )
+      pure
+        ( newConstraints
+          <> oracleConstraints
+          ,
+          state
+        )
 
 {-# INLINEABLE stateWithConstraints #-}
 stateWithConstraints :: BankParam -> CoinsMachineState -> BankInputAction -> Integer -> Integer-> (TxConstraints Void Void, CoinsMachineState)
@@ -156,28 +159,28 @@ calcReserveCoinRate BankParam {rcDefaultRate} bs@CoinsMachineState {reserveCoinA
     rcRate = equity `divide` reserveCoinAmount
 
 {-# INLINEABLE isNewStateValid #-}
-isNewStateValid :: BankParam -> CoinsMachineState -> Integer -> Either Text ()
+isNewStateValid :: BankParam -> CoinsMachineState -> Integer -> Either Prelude.String ()
 isNewStateValid bankParam bankState@CoinsMachineState {baseReserveAmount, stableCoinAmount, reserveCoinAmount} rate = do
-  unless (baseReserveAmount >= 0) "Invalid state : Base reserve amount is in negative."
-  -- unless (reserveCoinAmount >= 0) (throwError "Invalid state : Reserve coins amount is in negative.")
-  -- unless (stableCoinAmount >= 0) (throwError "Invalid state : Stable coins amount is in negative.")
-  -- unless (calcLiablities bankState rate >= 0) (throwError "Invalid state : Liabilities calculation is in negative.")
-  -- unless (calcEquity bankState rate >= 0) (throwError "Invalid state : Equity calculation is in negative.")
+  unless (baseReserveAmount >= 0) (throwError "Invalid state : Base reserve amount is in negative.")
+  unless (reserveCoinAmount >= 0) (throwError "Invalid state : Reserve coins amount is in negative.")
+  unless (stableCoinAmount >= 0) (throwError "Invalid state : Stable coins amount is in negative.")
+  unless (calcLiablities bankState rate >= 0) (throwError "Invalid state : Liabilities calculation is in negative.")
+  unless (calcEquity bankState rate >= 0) (throwError "Invalid state : Equity calculation is in negative.")
   
-  -- let currentReserveAmount = fromInteger baseReserveAmount
-  --     minReserveRequired = calcMinReserveRequired bankParam bankState rate
+  let currentReserveAmount = fromInteger baseReserveAmount
+      minReserveRequired = calcMinReserveRequired bankParam bankState rate
 
-  -- case minReserveRequired of 
-  --   Just minR -> do
-  --       unless (currentReserveAmount >= minR) (throwError "Invalid state : Base reserve amount is less than minimum required amount.")
-  --   Nothing -> pure ()
+  case minReserveRequired of 
+    Just minR -> do
+        unless (currentReserveAmount >= minR) (throwError "Invalid state : Base reserve amount is less than minimum required amount.")
+    Nothing -> pure ()
 
-  -- let maxReserveRequired = calcMaxReserveRequired bankParam bankState rate
+  let maxReserveRequired = calcMaxReserveRequired bankParam bankState rate
     
-  -- case maxReserveRequired of
-  --   Just maxR -> do
-  --       unless (currentReserveAmount <= maxR) (throwError "Invalid state : Base reserve amount is more than maximum required amount.")
-  --   Nothing -> pure ()
+  case maxReserveRequired of
+    Just maxR -> do
+        unless (currentReserveAmount <= maxR) (throwError "Invalid state : Base reserve amount is more than maximum required amount.")
+    Nothing -> pure ()
 
 {-# INLINEABLE calcMinReserveRequired #-}
 calcMinReserveRequired :: BankParam -> CoinsMachineState -> Integer -> Maybe (Ratio Integer)
@@ -241,7 +244,7 @@ checkContext bankParam@BankParam{oracleAddr} oldBankState BankInput{oracleOutput
       in
         case inputs of
             [o] -> o
-            _   -> traceError "expected exactly one oracle input"
+            _   -> traceError "expected exactly one oracle input during transistion check"
 
     oracleValue' = case oracleValue oracleInput (`findDatum` info) of
       Nothing -> traceError "oracle value not found"
