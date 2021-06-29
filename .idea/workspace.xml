@@ -2,10 +2,11 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="ba5c224d-7abb-4649-a155-962ac63b172d" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/plutus-starter.cabal" beforeDir="false" afterPath="$PROJECT_DIR$/plutus-starter.cabal" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/Plutus/Contracts/Coins/CoinsStateMachine.hs" beforeDir="false" afterPath="$PROJECT_DIR$/src/Plutus/Contracts/Coins/CoinsStateMachine.hs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/Plutus/Contracts/Coins/Endpoints.hs" beforeDir="false" afterPath="$PROJECT_DIR$/src/Plutus/Contracts/Coins/Endpoints.hs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/Plutus/Contracts/Oracle/Core.hs" beforeDir="false" afterPath="$PROJECT_DIR$/src/Plutus/Contracts/Oracle/Core.hs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/W2.cid" beforeDir="false" afterPath="$PROJECT_DIR$/W2.cid" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/W3.cid" beforeDir="false" afterPath="$PROJECT_DIR$/W3.cid" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/W4.cid" beforeDir="false" afterPath="$PROJECT_DIR$/W4.cid" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/cabal.project" beforeDir="false" afterPath="$PROJECT_DIR$/cabal.project" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/test/Spec/StableCoinTest.hs" beforeDir="false" afterPath="$PROJECT_DIR$/src/test/Spec/StableCoinTest.hs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -38,6 +39,8 @@
       <option name="presentableId" value="Default" />
       <updated>1624779427277</updated>
       <workItem from="1624779429699" duration="617000" />
+      <workItem from="1624873754298" duration="844000" />
+      <workItem from="1624896803227" duration="3000" />
     </task>
     <servers />
   </component>
