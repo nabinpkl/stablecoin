@@ -15,14 +15,15 @@ where
 import            Control.Lens
 import            Control.Monad                       (void)
 import qualified  Data.Map                            as Map
-import            Data.Text
+import qualified  Data.Monoid                         ((<>))
+import            Data.Text                           hiding (all, length)
 import            Ledger                              (pubKeyHash)
 import qualified  Ledger.Ada                          as Ada
 import            Ledger.Address                      (Address)
 import qualified  Ledger.Typed.Scripts                as Scripts
 import            Ledger.Value                        (Value)
 import            Ledger.Value                        as Value
-import            Plutus.Contract
+import            Plutus.Contract                     as Contract
 import            Plutus.Contract.Test
 import qualified  Plutus.Trace.Emulator               as Trace
 import qualified  PlutusTx  
@@ -40,7 +41,6 @@ import Plutus.Contracts.Coins.Types
 import Plutus.Contracts.Coins.Endpoints
 import Plutus.Contracts.Oracle.Core
 import qualified Data.Aeson.Types as Types
-
 
 oracleW1, w2 ,w3:: Wallet
 oracleW1 = Wallet 1
@@ -78,8 +78,8 @@ bp = BankParam
 coinsMachineAddress :: Address
 coinsMachineAddress = Scripts.validatorAddress $ CoinsMachine.scriptInstance bp
 
-oValidatorAddress :: Oracle -> Address
-oValidatorAddress oracle = oracleAddress oracle
+oValidatorAddress :: Address
+oValidatorAddress = oracleAddress oracle
 
 reserveCoinsValue :: BankParam -> Integer -> Value
 reserveCoinsValue bankParam@BankParam {reserveCoinTokenName} tokenAmount =
@@ -133,85 +133,67 @@ tests =
   testGroup
     "stablecoin"
     [ 
-    --   checkPredicateOptions options "mint stablecoins"
-    --       ( 
-    --         (valueAtAddress coinsMachineAddress (== (adaVal 100)))
-    --           .&&. 
-    --           assertNoFailedTransactions
-    --           .&&. walletFundsChange w2 ((stableCoinsValue bp 100) <> (negate (adaVal 100)) <> (negate oracleFee))
-    --       )
-    --   $ mintStableCoins 100
-    -- ,
-    --   checkPredicateOptions options "mint reservecoins"
-    --     ( (valueAtAddress coinsMachineAddress (== (adaVal 100)))
-    --         .&&. assertNoFailedTransactions
-    --         .&&. walletFundsChange w2 ((reserveCoinsValue bp 100) <> (negate (adaVal 100)) <> (negate oracleFee))
-    --     )
-    --     $ mintReserveCoins 100
+      checkPredicateOptions options "mint stablecoins"
+          ( 
+            (valueAtAddress coinsMachineAddress (== (adaVal 100)))
+              .&&. 
+              assertNoFailedTransactions
+              .&&. walletFundsChange w2 ((stableCoinsValue bp 100) <> (negate (adaVal 100)) <> (negate oracleFee))
+          )
+      $ mintStableCoins 100
+    ,
+      checkPredicateOptions options "mint reservecoins"
+        ( (valueAtAddress coinsMachineAddress (== (adaVal 100)))
+            .&&. assertNoFailedTransactions
+            .&&. walletFundsChange w2 ((reserveCoinsValue bp 100) <> (negate (adaVal 100)) <> (negate oracleFee))
+        )
+        $ mintReserveCoins 100
         
-    --     --Mint 10 stable coin, redeem 5 stable coin
-    --     -- So value at coinsMachineAddress is 5 and user also have  
-    --     -- 5 stable coins and only 5 ada is cutoff at final wallet balances with rate 1:1
-    -- ,   -- Oracle fee * 2 as double fee is required for minting and redeeming
-    --   checkPredicateOptions options "mint stablecoins redeem stablecoins"
-    --     ( ( valueAtAddress coinsMachineAddress (== (adaVal 5)))
-    --         .&&. assertNoFailedTransactions
-    --         .&&. walletFundsChange w2 ((stableCoinsValue bp 5) <> (negate (adaVal 5)) <> (negate (oracleFeeMultiply 2)))
-    --     )
-    --     $ mintAndRedeemStableCoins 10 5
-    -- ,    
-    --   checkPredicateOptions options "mint reservecoins redeem reservecoins"
-    --     ( ( valueAtAddress coinsMachineAddress (== (adaVal 5)))
-    --         .&&. assertNoFailedTransactions
-    --         .&&. walletFundsChange w2 ((reserveCoinsValue bp 5) <> (negate (adaVal 5)) <> (negate (oracleFeeMultiply 2)))
-    --     )
-    --     $ mintAndRedeemReserveCoins 10 5
-    -- -- ,
-        -- --TODO improve on error testing to test specific log message of error
-    --     checkPredicateOptions options "mint stablecoins try redeem more stablecoins than minted should fail"
-    --     (  
-    --        assertContractError (coinsContract bp) (Trace.walletInstanceTag w2) (\_ -> True) "should throw insufficent funds"
-    --     )
-    --     $ mintAndRedeemStableCoins 10 15
-    -- ,
-    --     checkPredicateOptions options "mint reserve coins try redeem more reserve coins than minted should fail"
-    --     (  
-    --        assertContractError (coinsContract bp) (Trace.walletInstanceTag w2) (\_ -> True) "should throw insufficent funds"
-    --     )
-    --     $ mintAndRedeemReserveCoins 10 15
-
-            checkPredicateOptions options "Update oracle"
-    --       ( 
-    --         (valueAtAddress oValidatorAddress (== (adaVal 100)))
-    --           .&&. 
-                  dataAtAddress oValidatorAddress
-    --           .&&. 
-    --           assertNoFailedTransactions
-    --           .&&. walletFundsChange w1 ((stableCoinsValue bp 100) <> (negate (adaVal 100)) <> (negate oracleFee))
-    --       )
-        
+        --Mint 10 stable coin, redeem 5 stable coin
+        -- So value at coinsMachineAddress is 5 and user also have  
+        -- 5 stable coins and only 5 ada is cutoff at final wallet balances with rate 1:1
+    ,   -- Oracle fee * 2 as double fee is required for minting and redeeming
+      checkPredicateOptions options "mint stablecoins redeem stablecoins"
+        ( ( valueAtAddress coinsMachineAddress (== (adaVal 5)))
+            .&&. assertNoFailedTransactions
+            .&&. walletFundsChange w2 ((stableCoinsValue bp 5) <> (negate (adaVal 5)) <> (negate (oracleFeeMultiply 2)))
+        )
+        $ mintAndRedeemStableCoins 10 5
+    ,    
+      checkPredicateOptions options "mint reservecoins redeem reservecoins"
+        ( ( valueAtAddress coinsMachineAddress (== (adaVal 5)))
+            .&&. assertNoFailedTransactions
+            .&&. walletFundsChange w2 ((reserveCoinsValue bp 5) <> (negate (adaVal 5)) <> (negate (oracleFeeMultiply 2)))
+        )
+        $ mintAndRedeemReserveCoins 10 5
+    ,
+        --TODO improve on error testing to test specific log message of error
+        checkPredicateOptions options "mint stablecoins try redeem more stablecoins than minted should fail"
+        (  
+           assertContractError (coinsContract bp) (Trace.walletInstanceTag w2) (\_ -> True) "should throw insufficent funds"
+        )
+        $ mintAndRedeemStableCoins 10 15
+    ,
+        checkPredicateOptions options "mint reserve coins try redeem more reserve coins than minted should fail"
+        (  
+           assertContractError (coinsContract bp) (Trace.walletInstanceTag w2) (\_ -> True) "should throw insufficent funds"
+        )
+        $ mintAndRedeemReserveCoins 10 15
     ]
 
+newOracleValue :: Integer
+newOracleValue = 3
 
+type OracleContractHandle = (Trace.ContractHandle () OracleSchema Text)
 
--- oracleTest :: Trace.EmulatorTrace ()
--- oracleTest = do
---     let op = OracleParams
---                 { opFees = 1_000_000
---                 , opSymbol = assetSymbol
---                 , opToken  = assetToken
---                 }
+initialiseOracle :: Trace.EmulatorTrace OracleContractHandle
+initialiseOracle = do
+  oracleHdl <- Trace.activateContractWallet oracleW1 $ runMockOracle oracle
+  void $ Trace.waitNSlots 10
 
---     h1 <- activateContractWallet (Wallet 1) $ runOracle op
---     void $ Emulator.waitNSlots 1
---     oracle <- getOracle h1
-
---     void $ activateContractWallet (Wallet 2) $ checkOracle oracle
-
---     callEndpoint @"update" h1 1_500_000
---     void $ Emulator.waitNSlots 3
-
---     void $ activateContractWallet (Wallet 1) ownFunds'
+  Trace.callEndpoint @"update" oracleHdl 1
+  void $ Trace.waitNSlots 10
+  return oracleHdl
 
 type CoinsContractHandle = (Trace.ContractHandle [Types.Value ] BankStateSchema Text)
 

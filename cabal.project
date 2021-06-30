@@ -39,8 +39,8 @@ source-repository-package
 -- configuration.
 
 
---package stable-coin-starter
---  coverage: True
+package stable-coin-starter
+  coverage: True
 
 package ouroboros-network
   coverage: False
