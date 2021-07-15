@@ -46,30 +46,31 @@ import           Ledger                        hiding (to)
 import           Playground.Contract           (ToSchema)
 
 
-
+--State hold by the statemachine
 data CoinsMachineState = CoinsMachineState
-  { baseReserveAmount :: Integer,
-    stableCoinAmount :: Integer,
-    reserveCoinAmount :: Integer,
-    policyScript :: MonetaryPolicyHash
+  { baseReserveAmount :: Integer, -- Current amount of ada reserves held in contract
+    stableCoinAmount :: Integer, -- Current amount of stable coins in circulation
+    reserveCoinAmount :: Integer, -- Current amount of reserve coins in circulation
+    policyScript :: MonetaryPolicyHash -- Policy script used for minting of coins
   }
   deriving stock (Generic, Prelude.Eq, Prelude.Show)
   deriving anyclass (ToJSON, FromJSON)
 
---
+--Parameter to parameterized stable coin contract statemachine
 data BankParam = BankParam
-  { stableCoinTokenName :: TokenName,
-    reserveCoinTokenName :: TokenName,
-    minReserveRatio :: Ratio Integer,
-    maxReserveRatio :: Ratio Integer,
-    rcDefaultRate :: Integer,
-    oracleParam :: Oracle,
-    oracleAddr :: Address
+  { stableCoinTokenName :: TokenName, -- Token name used for stable coin token
+    reserveCoinTokenName :: TokenName, -- Token name used for reserve coin token
+    minReserveRatio :: Ratio Integer, -- Minimum reserve ratio that must be kept in contract no tokens forging is allowded below the minimum amount 
+    maxReserveRatio :: Ratio Integer, -- Maximum reserve ratio that must be kept within contract no tokens forging is allowded above maximum amount
+    rcDefaultRate :: Integer, -- Default rate of reserve token if there are no reserve coins minted yet
+    oracleParam :: Oracle,    -- Oracle used to getting exchange rate
+    oracleAddr :: Address, -- Address of the oracle used to get oracle value to verify its integrity that value is obtained from this oracle address
+    bankFee :: Ratio Integer -- Fees charged by contract to contirbute some portion of forged amount to kept in reserve
   }
   deriving stock (Generic, Prelude.Ord, Prelude.Eq, Prelude.Show)
   deriving anyclass (ToJSON, FromJSON)
 
---
+-- Actions that can be performed in stable coin contract
 data BankInputAction
   = MintStableCoin Integer
   | RedeemStableCoin Integer
@@ -78,32 +79,36 @@ data BankInputAction
   deriving stock (Generic, Prelude.Eq, Prelude.Show)
   deriving anyclass (ToJSON, FromJSON)
 
-type OracleOutput = (TxOutRef, TxOut, Integer)
---
+type OracleOutput = (TxOutRef, TxOut, Integer) 
+
+-- Redeemer input for updating the state of the contract
 data BankInput = BankInput
   { 
-    bankInputAction :: BankInputAction,
-    oracleOutput :: OracleOutput
+    bankInputAction :: BankInputAction, --Action to be performed on contract
+    oracleOutput :: OracleOutput -- Oracle output used in the contract to get exchange rate
   }
   deriving stock (Generic, Prelude.Eq, Prelude.Show)
   deriving anyclass (ToJSON, FromJSON)
 
+--Data used from the endpoint to be used as input of contract definitions
 data EndpointInput = EndpointInput
   { 
-    tokenAmount :: Integer
+    tokenAmount :: Integer -- Tokens amount to be forged
   }
   deriving stock (Generic, Prelude.Eq, Prelude.Show)
   deriving anyclass (ToJSON, FromJSON, ToSchema)
 
+--Data used for getting current exchange rates of peg, stable coin and reserve coin
 data Rates = Rates
   { 
-    pegRate :: Integer,
-    scRate :: Integer,
-    rcRate :: Integer
+    pegRate :: Integer, -- Current exchange rate of 1 usd to lovelace
+    scRate :: Integer, -- Current stable coin exchange rate for 1 stable coin
+    rcRate :: Integer -- Curretn reserve coin exchange rate for 1 reserve coin
   }
   deriving stock (Generic, Prelude.Eq, Prelude.Show)
   deriving anyclass (ToJSON, FromJSON)
 
+--Used as json key to unify response of current rates
 data RatesResponse = RatesResponse
   { 
     currentCoinsRates :: Rates
@@ -111,6 +116,7 @@ data RatesResponse = RatesResponse
   deriving stock (Generic, Prelude.Eq, Prelude.Show)
   deriving anyclass (ToJSON, FromJSON)
 
+--Used as json key to unify response of current state of the statemachine
 data StateResponse = StateResponse
   { 
     currentCoinsState :: CoinsMachineState

@@ -129,6 +129,7 @@ test-suite stablecoin-tests
   Other-modules:
                        Spec.StableCoinTest
                        Spec.OracleTest
+                       Utils.ValidatorTestFramework
   default-extensions:
     RecordWildCards
     OverloadedStrings

@@ -73,10 +73,11 @@ import qualified Data.Aeson.Types as Types
 import Data.Aeson (toJSON)
 import           Ledger.AddressMap                 (UtxoMap)
 
-
+-- Get forwarding monteragy policy script hash from state machine instance
 forwardMPS :: StateMachineClient CoinsMachineState BankInput -> MonetaryPolicyHash
 forwardMPS StateMachineClient {scInstance} = Scripts.forwardingMonetaryPolicyHash $ SM.typedValidator scInstance
 
+--Initial state of state machine to be set to all values to 0 with mps from script instance
 initialState :: StateMachineClient CoinsMachineState BankInput -> CoinsMachineState
 initialState smClient =
   CoinsMachineState
@@ -86,15 +87,19 @@ initialState smClient =
       policyScript = forwardMPS smClient
     }
 
+--Helper to convert SM contract error to Text error
 mapError' :: Contract w s SMContractError a -> Contract w s Text a
 mapError' = mapError $ pack . Prelude.show
 
+--Endpoint to start the stable coint contract with  parameters supplied to banks
 start :: HasBlockchainActions s => BankParam -> Integer -> Contract w s Text ()
 start bankParam _ = do
   let client = machineClient (scriptInstance bankParam) bankParam
   void $ mapError' $ SM.runInitialise client (initialState client) mempty
 
---TODO make transistion to use whole oracle output instead of only values obtained from it
+--TODO handle error
+--Run step function to construct lookups and execute run step of state machine
+-- Specific input to state machine i.e either minting or redeeming of coins is passed 
 smRunStep :: HasBlockchainActions s => BankParam -> BankInputAction -> Contract w s Text ()
 smRunStep bankParam@BankParam{oracleParam} bankInputAction = do
   let client = machineClient (scriptInstance bankParam) bankParam
@@ -123,18 +128,23 @@ smRunStep bankParam@BankParam{oracleParam} bankInputAction = do
           void $ logInfo @Prelude.String $ "Endpoint call completed " ++ Prelude.show bankInputAction
 
 --TODO check for validation in offchain
+-- Contract endpoint for minting of stable coin
 mintStableCoin :: HasBlockchainActions s => BankParam -> EndpointInput -> Contract w s Text ()
 mintStableCoin bankParam@BankParam{oracleParam} EndpointInput{tokenAmount} = smRunStep bankParam $ MintStableCoin tokenAmount
 
+-- Contract endpoint for redeeming of stable coin to get ada back at current stable coin rate
 redeemStableCoin :: HasBlockchainActions s => BankParam -> EndpointInput -> Contract w s Text ()
 redeemStableCoin bankParam EndpointInput{tokenAmount} = smRunStep bankParam $ RedeemStableCoin tokenAmount
 
+-- Contract endpoint for minting of reserve coin
 mintReserveCoin :: HasBlockchainActions s => BankParam -> EndpointInput -> Contract w s Text ()
 mintReserveCoin bankParam EndpointInput{tokenAmount} = smRunStep bankParam $ MintReserveCoin tokenAmount
 
+-- Contract endpoint for redeeming of resever coin  to get ada back at current reserve rate
 redeemReserveCoin :: HasBlockchainActions s => BankParam -> EndpointInput -> Contract w s Text ()
 redeemReserveCoin bankParam EndpointInput{tokenAmount} = smRunStep bankParam $ RedeemReserveCoin tokenAmount
 
+--Endpoint definitions availabe for the stable coin contract
 type BankStateSchema =
   BlockchainActions
     .\/ Endpoint "start" Integer
@@ -151,6 +161,7 @@ type BankStateSchema =
     .\/ Endpoint "currentRates" Prelude.String
 
 --TODO writer value [Types.Value]
+--Starting point of the contract which combines all the endpoints to be available for call
 coinsContract :: BankParam -> Contract [Types.Value] BankStateSchema Text ()
 coinsContract bankParam =
   ( 
@@ -184,7 +195,7 @@ coinsContract bankParam =
     reserveToLovRate' = endpoint @"reserveRate" >> currentReserveToLovelaceRate bankParam
     currentRates' = endpoint @"currentRates" >> currentRates bankParam
 
-
+-- Endpoint for getting current funds held in a users public key
 ownFunds:: HasBlockchainActions s => BankParam -> Contract [Types.Value ] s Text  ()
 ownFunds _ = do
     pk    <- ownPubKey
@@ -193,16 +204,18 @@ ownFunds _ = do
     logInfo @Prelude.String $ "own funds: " ++ Prelude.show (flattenValue v)
     tell [ toJSON v]
 
-currentState :: ( SM.AsSMContractError e
+--Helper fucntion for getting current state of state machine
+getCurrentState :: ( SM.AsSMContractError e
     , HasUtxoAt schema)
     => BankParam -> Contract w schema e (Maybe (SM.OnChainState CoinsMachineState BankInput, UtxoMap))
-currentState bankParam = do
+getCurrentState bankParam = do
   let client = machineClient (scriptInstance bankParam) bankParam
   SM.getOnChainState client
 
+--Endpoint for getting current state of state machine i.e current tokesn supply, base reserves etc.
 currentCoinsMachineState:: HasBlockchainActions s => BankParam -> Contract [Types.Value ] s Text  ()
 currentCoinsMachineState bankParam = do
-  currentStateVal <- mapError' $ currentState bankParam
+  currentStateVal <- mapError' $ getCurrentState bankParam
   case currentStateVal of
     Just ((TypedScriptTxOut{tyTxOutData=state},_),_) -> do
         logInfo @Prelude.String $ "Current state: " ++ Prelude.show state
@@ -212,6 +225,7 @@ currentCoinsMachineState bankParam = do
         tell [toJSON stateResponse]
     Nothing -> logWarn @Prelude.String $ "Current state is not present yet."
 
+--Ednpoint for getting current 1 usd to ada lovelace exchange rate
 currentPegToLovelaceRate :: HasBlockchainActions s => BankParam -> Contract [Types.Value ] s Text  ()
 currentPegToLovelaceRate bankParam = do
   oracle <- findOracle $ oracleParam bankParam
@@ -221,6 +235,8 @@ currentPegToLovelaceRate bankParam = do
       logInfo @Prelude.String $ "Current state: " ++ Prelude.show rate
       tell [toJSON rate]
 
+--Ednpoint for getting current 1 stable coin to ada lovelace exchange rate
+
 --TODO Merge duplicated code on getting stable and reserve rate functions
 currentStableToLovelaceRate :: HasBlockchainActions s => BankParam -> Contract [Types.Value ] s Text  ()
 currentStableToLovelaceRate bankParam = do
@@ -228,7 +244,7 @@ currentStableToLovelaceRate bankParam = do
   case oracle of
     Nothing -> logWarn @Prelude.String "Oracle not found"
     Just (oref, o, rate) -> do
-      currentStateVal <- mapError' $ currentState bankParam
+      currentStateVal <- mapError' $ getCurrentState bankParam
       case currentStateVal of
           Just ((TypedScriptTxOut{tyTxOutData=state},_),_) -> do
               logInfo @Prelude.String $ "Current state: " ++ Prelude.show state
@@ -236,13 +252,14 @@ currentStableToLovelaceRate bankParam = do
               tell [toJSON scRate]
           Nothing -> logWarn @Prelude.String $ "Current state is not present yet."
 
+--Ednpoint for getting current 1 reserve to ada lovelace exchange rate
 currentReserveToLovelaceRate :: HasBlockchainActions s => BankParam -> Contract [Types.Value ] s Text  ()
 currentReserveToLovelaceRate bankParam = do
   oracle <- findOracle $ oracleParam bankParam
   case oracle of
     Nothing -> logWarn @Prelude.String "Oracle not found"
     Just (oref, o, rate) -> do
-      currentStateVal <- mapError' $ currentState bankParam
+      currentStateVal <- mapError' $ getCurrentState bankParam
       case currentStateVal of
           Just ((TypedScriptTxOut{tyTxOutData=state},_),_) -> do
               logInfo @Prelude.String $ "Current state: " ++ Prelude.show state
@@ -250,16 +267,16 @@ currentReserveToLovelaceRate bankParam = do
               tell [toJSON rcRate]
           Nothing -> logWarn @Prelude.String $ "Current state is not present yet."
 
+--Endpoint for getting combined rates of peg, stable coin rate and reserve coin rate
 currentRates :: HasBlockchainActions s => BankParam -> Contract [Types.Value ] s Text  ()
 currentRates bankParam = do
   oracle <- findOracle $ oracleParam bankParam
   case oracle of
     Nothing -> logWarn @Prelude.String "Oracle not found"
     Just (oref, o, rate) -> do
-      currentStateVal <- mapError' $ currentState bankParam
+      currentStateVal <- mapError' $ getCurrentState bankParam
       case currentStateVal of
           Just ((TypedScriptTxOut{tyTxOutData=state},_),_) -> do
-              logInfo @Prelude.String $ "Current state: " ++ Prelude.show state
               let rcRate = calcReserveCoinRate bankParam state rate
                   scRate = calcStableCoinRate state rate
 
@@ -272,5 +289,6 @@ currentRates bankParam = do
                   ratesResponse = RatesResponse{
                     currentCoinsRates = rates
                   }
+              logInfo @Prelude.String $ "Current rates: " ++ Prelude.show rates
               tell [toJSON ratesResponse]
           Nothing -> logWarn @Prelude.String $ "Current state is not present yet."

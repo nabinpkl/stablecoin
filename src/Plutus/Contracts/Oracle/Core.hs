@@ -27,6 +27,7 @@ module Plutus.Contracts.Oracle.Core
     , runOracle
     , runMockOracle
     , findOracle
+    , mkOracleValidator
     ) where
 
 import           Control.Monad             hiding (fmap)
@@ -47,29 +48,33 @@ import           Plutus.Contracts.Currency as Currency
 import           Prelude                   (Semigroup (..))
 import qualified Prelude                   as Prelude
 
+--Paramenter data of oracle to be used in oraclle validator
 data Oracle = Oracle
-    { oNftSymbol   :: !CurrencySymbol
-    , oOperator    :: !PubKeyHash
-    , oFee         :: !Integer
+    { oNftSymbol   :: !CurrencySymbol -- Nft symbol to identify correct utxo for getting exchange rate
+    , oOperator    :: !PubKeyHash      -- Public key hash of operator of oracle like for updating the price
+    , oFee         :: !Integer          -- Fee taken by oracle to use its value as an exchange rate
     } deriving (Prelude.Show, Generic, FromJSON, ToJSON, Prelude.Eq, Prelude.Ord)
 
 PlutusTx.makeLift ''Oracle
 PlutusTx.unstableMakeIsData ''Oracle
 
-
+--Redeemer for Update and Use action provided in oracle contract
 data OracleRedeemer = Update | Use
     deriving Prelude.Show
 
 PlutusTx.unstableMakeIsData ''OracleRedeemer
 
+--Construct a oracle token name as empty byte string
 {-# INLINABLE oracleTokenName #-}
 oracleTokenName :: TokenName
 oracleTokenName = TokenName emptyByteString
 
+--Construct a asset class of oracle symbol and oracle token name
 {-# INLINABLE oracleNftAsset #-}
 oracleNftAsset :: Oracle -> AssetClass
 oracleNftAsset oracle = AssetClass (oNftSymbol oracle, oracleTokenName)
 
+--Find value of oracle from tx output
 {-# INLINABLE oracleValue #-}
 oracleValue :: TxOut -> (DatumHash -> Maybe Datum) -> Maybe Integer
 oracleValue o f = do
@@ -77,6 +82,7 @@ oracleValue o f = do
     Datum d <- f dh
     PlutusTx.fromData d
 
+--Oracle validator for checking update and use of oracle value
 {-# INLINABLE mkOracleValidator #-}
 mkOracleValidator :: Oracle -> Integer -> OracleRedeemer -> ScriptContext -> Bool
 mkOracleValidator oracle x r ctx =
@@ -139,6 +145,7 @@ oracleValidator = Scripts.validatorScript . oracleInst
 oracleAddress :: Oracle -> Ledger.Address
 oracleAddress = scriptAddress . oracleValidator
 
+--Start oracle by first getting currecny symbol of nft to be used and make a oracle paramter using that currecny symbol
 startOracle :: forall w s. HasBlockchainActions s => Contract w s Text Oracle
 startOracle = do
     logInfo @Prelude.String $ "Starting oracle "
@@ -153,6 +160,9 @@ startOracle = do
     logInfo @Prelude.String $ "started oracle " ++ Prelude.show oracle
     return oracle
 
+--Endpoint to update oracle which is only allowed by owner of the oracle provider
+-- Find the oracle valie if nothing found then submit oracle value to oracle script
+-- Otherwise spent previous ouput and construct new utxo with new oracle value at oracle address
 updateOracle :: forall w s. HasBlockchainActions s => Oracle -> Integer -> Contract w s Text ()
 updateOracle oracle x = do
     m <- findOracle oracle
@@ -171,6 +181,7 @@ updateOracle oracle x = do
             awaitTxConfirmed $ txId ledgerTx
             logInfo @Prelude.String $ "updated oracle value to " ++ Prelude.show x
 
+-- Helper function to find oracle from list of utxos that are present at oracle address
 findOracle :: forall w s. HasBlockchainActions s => Oracle -> Contract w s Text (Maybe (TxOutRef, TxOutTx, Integer))
 findOracle oracle = do
     utxos <- Map.filter f <$> utxoAt (oracleAddress oracle)
@@ -185,6 +196,7 @@ findOracle oracle = do
 
 type OracleSchema = BlockchainActions .\/ Endpoint "update" Integer
 
+--Contract for running oracle contract by first constructing a oracle paramter
 runOracle :: Contract (Last Oracle) OracleSchema Text ()
 runOracle = do
     oracle <- startOracle
@@ -197,6 +209,7 @@ runOracle = do
         updateOracle oracle x
         go oracle
 
+--Run mock oracle to be used in test with default oracle provided form outside of contract
 runMockOracle :: Oracle -> Contract () OracleSchema Text ()
 runMockOracle oracle = do
     go oracle
