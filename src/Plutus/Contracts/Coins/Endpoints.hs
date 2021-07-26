@@ -11,29 +11,7 @@
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE NumericUnderscores #-}
-
--- {-# LANGUAGE DataKinds #-}
--- {-# LANGUAGE DeriveAnyClass #-}
--- {-# LANGUAGE DeriveGeneric #-}
--- {-# LANGUAGE DerivingStrategies #-}
--- {-# LANGUAGE DerivingVia #-}
--- {-# LANGUAGE FlexibleContexts #-}
--- {-# LANGUAGE LambdaCase #-}
--- {-# LANGUAGE MonoLocalBinds #-}
--- {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
--- {-# LANGUAGE OverloadedStrings #-}
--- {-# LANGUAGE ScopedTypeVariables #-}
--- {-# LANGUAGE TemplateHaskell #-}
--- {-# LANGUAGE TypeApplications #-}
--- {-# LANGUAGE TypeFamilies     #-}
--- {-# LANGUAGE TypeOperators #-}
--- {-# LANGUAGE ViewPatterns #-}
--- {-# LANGUAGE NoImplicitPrelude #-}
--- {-# OPTIONS_GHC -Wno-name-shadowing #-}
--- {-# OPTIONS_GHC -fno-ignore-interface-pragmas #-}
--- {-# OPTIONS_GHC -fno-strictness #-}
--- {-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:debug-context #-}
 
 module Plutus.Contracts.Coins.Endpoints
   ( 
@@ -104,6 +82,7 @@ smRunStep :: HasBlockchainActions s => BankParam -> BankInputAction -> Contract 
 smRunStep bankParam@BankParam{oracleParam} bankInputAction = do
   let client = machineClient (scriptInstance bankParam) bankParam
 
+--TODO map different oracles pool into one.
   oracle <- findOracle oracleParam
   
   case oracle of
@@ -155,9 +134,6 @@ type BankStateSchema =
 
     .\/ Endpoint "funds" Prelude.String
     .\/ Endpoint "currentState" Prelude.String
-    .\/ Endpoint "pegRate" Prelude.String
-    .\/ Endpoint "stableRate" Prelude.String
-    .\/ Endpoint "reserveRate" Prelude.String
     .\/ Endpoint "currentRates" Prelude.String
 
 --TODO writer value [Types.Value]
@@ -174,9 +150,6 @@ coinsContract bankParam =
 
       `select` ownFunds'
       `select` currentState'
-      `select` pegToLovRate'
-      `select` stableToLovRate'
-      `select` reserveToLovRate'
       `select` currentRates'
   )
     >> coinsContract bankParam
@@ -190,12 +163,9 @@ coinsContract bankParam =
     
     ownFunds' = endpoint @"funds" >> ownFunds bankParam
     currentState' = endpoint @"currentState" >> currentCoinsMachineState bankParam
-    pegToLovRate' = endpoint @"pegRate" >> currentPegToLovelaceRate bankParam
-    stableToLovRate' = endpoint @"stableRate" >> currentStableToLovelaceRate bankParam
-    reserveToLovRate' = endpoint @"reserveRate" >> currentReserveToLovelaceRate bankParam
     currentRates' = endpoint @"currentRates" >> currentRates bankParam
 
--- Endpoint for getting current funds held in a users public key
+--Endpoint for getting current funds held in a users public key
 ownFunds:: HasBlockchainActions s => BankParam -> Contract [Types.Value ] s Text  ()
 ownFunds _ = do
     pk    <- ownPubKey
@@ -224,48 +194,6 @@ currentCoinsMachineState bankParam = do
         }
         tell [toJSON stateResponse]
     Nothing -> logWarn @Prelude.String $ "Current state is not present yet."
-
---Ednpoint for getting current 1 usd to ada lovelace exchange rate
-currentPegToLovelaceRate :: HasBlockchainActions s => BankParam -> Contract [Types.Value ] s Text  ()
-currentPegToLovelaceRate bankParam = do
-  oracle <- findOracle $ oracleParam bankParam
-  case oracle of
-    Nothing -> logWarn @Prelude.String "Oracle not found"
-    Just (oref, o, rate) -> do
-      logInfo @Prelude.String $ "Current state: " ++ Prelude.show rate
-      tell [toJSON rate]
-
---Ednpoint for getting current 1 stable coin to ada lovelace exchange rate
-
---TODO Merge duplicated code on getting stable and reserve rate functions
-currentStableToLovelaceRate :: HasBlockchainActions s => BankParam -> Contract [Types.Value ] s Text  ()
-currentStableToLovelaceRate bankParam = do
-  oracle <- findOracle $ oracleParam bankParam
-  case oracle of
-    Nothing -> logWarn @Prelude.String "Oracle not found"
-    Just (oref, o, rate) -> do
-      currentStateVal <- mapError' $ getCurrentState bankParam
-      case currentStateVal of
-          Just ((TypedScriptTxOut{tyTxOutData=state},_),_) -> do
-              logInfo @Prelude.String $ "Current state: " ++ Prelude.show state
-              let scRate = calcStableCoinRate state rate
-              tell [toJSON scRate]
-          Nothing -> logWarn @Prelude.String $ "Current state is not present yet."
-
---Ednpoint for getting current 1 reserve to ada lovelace exchange rate
-currentReserveToLovelaceRate :: HasBlockchainActions s => BankParam -> Contract [Types.Value ] s Text  ()
-currentReserveToLovelaceRate bankParam = do
-  oracle <- findOracle $ oracleParam bankParam
-  case oracle of
-    Nothing -> logWarn @Prelude.String "Oracle not found"
-    Just (oref, o, rate) -> do
-      currentStateVal <- mapError' $ getCurrentState bankParam
-      case currentStateVal of
-          Just ((TypedScriptTxOut{tyTxOutData=state},_),_) -> do
-              logInfo @Prelude.String $ "Current state: " ++ Prelude.show state
-              let rcRate = calcReserveCoinRate bankParam state rate
-              tell [toJSON rcRate]
-          Nothing -> logWarn @Prelude.String $ "Current state is not present yet."
 
 --Endpoint for getting combined rates of peg, stable coin rate and reserve coin rate
 currentRates :: HasBlockchainActions s => BankParam -> Contract [Types.Value ] s Text  ()

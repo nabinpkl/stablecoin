@@ -98,12 +98,12 @@ adaVal x = Ada.lovelaceValueOf x
 initialAdaValue :: Value
 initialAdaValue = adaVal 100_000_000
 
-oracleFee :: Value
-oracleFee = adaVal $ oFee oracle
+-- oracleFee :: Value
+-- oracleFee = adaVal $ oFee oracle
 
 --value of oracle for getting multiple time oracle used in same test
-oracleFeeMultiply :: Integer -> Value
-oracleFeeMultiply mulBy = adaVal (oFee oracle * mulBy)
+-- oracleFeeMultiply :: Integer -> Value
+-- oracleFeeMultiply mulBy = adaVal (oFee oracle * mulBy)
 
 oracleToken :: Value
 oracleToken =
@@ -134,53 +134,65 @@ tests =
   testGroup
     "stablecoin"
     [ 
-    --   checkPredicateOptions options "mint stablecoins"
-    --       ( 
-    --         (valueAtAddress coinsMachineAddress (== (adaVal 100)))
-    --           .&&. 
-    --           assertNoFailedTransactions
-    --           .&&. walletFundsChange w2 ((stableCoinsValue bp 100) <> (negate (adaVal 100)) <> (negate oracleFee))
-    --       )
-    --   $ mintStableCoins 100
-    -- ,
-    --   checkPredicateOptions options "mint reservecoins"
-    --     ( (valueAtAddress coinsMachineAddress (== (adaVal 100)))
-    --         .&&. assertNoFailedTransactions
-    --         .&&. walletFundsChange w2 ((reserveCoinsValue bp 100) <> (negate (adaVal 100)) <> (negate oracleFee))
-    --     )
-    --     $ mintReserveCoins 100
+      checkPredicateOptions options "mint stablecoins"
+          ( 
+            (valueAtAddress coinsMachineAddress (== (adaVal 100)))
+              .&&. 
+              assertNoFailedTransactions
+              .&&. walletFundsChange w2 ((stableCoinsValue bp 100) <> (negate (adaVal 100)) 
+              -- <> 
+              -- (negate oracleFee)
+              )
+          )
+      $ mintStableCoins 100
+    ,
+      checkPredicateOptions options "mint reservecoins"
+        ( (valueAtAddress coinsMachineAddress (== (adaVal 100)))
+            .&&. assertNoFailedTransactions
+            .&&. walletFundsChange w2 ((reserveCoinsValue bp 100) <> (negate (adaVal 100)) 
+            -- <> 
+            -- (negate oracleFee)
+            )
+        )
+        $ mintReserveCoins 100
         
-    --     --Mint 10 stable coin, redeem 5 stable coin
-    --     -- So value at coinsMachineAddress is 5 and user also have  
-    --     -- 5 stable coins and only 5 ada is cutoff at final wallet balances with rate 1:1
-    -- ,   -- Oracle fee * 2 as double fee is required for minting and redeeming
-    --   checkPredicateOptions options "mint stablecoins redeem stablecoins"
-    --     ( ( valueAtAddress coinsMachineAddress (== (adaVal 5)))
-    --         .&&. assertNoFailedTransactions
-    --         .&&. walletFundsChange w2 ((stableCoinsValue bp 5) <> (negate (adaVal 5)) <> (negate (oracleFeeMultiply 2)))
-    --     )
-    --     $ mintAndRedeemStableCoins 10 5
-    -- ,    
-    --   checkPredicateOptions options "mint reservecoins redeem reservecoins"
-    --     ( ( valueAtAddress coinsMachineAddress (== (adaVal 5)))
-    --         .&&. assertNoFailedTransactions
-    --         .&&. walletFundsChange w2 ((reserveCoinsValue bp 5) <> (negate (adaVal 5)) <> (negate (oracleFeeMultiply 2)))
-    --     )
-    --     $ mintAndRedeemReserveCoins 10 5
-    -- ,
-    --     --TODO improve on error testing to test specific log message of error
-    --     checkPredicateOptions options "mint stablecoins try redeem more stablecoins than minted should fail"
-    --     (  
-    --        assertContractError (coinsContract bp) (Trace.walletInstanceTag w2) (\_ -> True) "should throw insufficent funds"
-    --     )
-    --     $ mintAndRedeemStableCoins 10 15
-    -- ,
-    --     checkPredicateOptions options "mint reserve coins try redeem more reserve coins than minted should fail"
-    --     (  
-    --        assertContractError (coinsContract bp) (Trace.walletInstanceTag w2) (\_ -> True) "should throw insufficent funds"
-    --     )
-    --     $
-    --      mintAndRedeemReserveCoins 10 15
+        --Mint 10 stable coin, redeem 5 stable coin
+        -- So value at coinsMachineAddress is 5 and user also have  
+        -- 5 stable coins and only 5 ada is cutoff at final wallet balances with rate 1:1
+    ,   -- Oracle fee * 2 as double fee is required for minting and redeeming
+      checkPredicateOptions options "mint stablecoins redeem stablecoins"
+        ( ( valueAtAddress coinsMachineAddress (== (adaVal 5)))
+            .&&. assertNoFailedTransactions
+            .&&. walletFundsChange w2 ((stableCoinsValue bp 5) <> (negate (adaVal 5)) 
+            -- <> 
+            -- (negate (oracleFeeMultiply 2))
+            )
+        )
+        $ mintAndRedeemStableCoins 10 5
+    ,    
+      checkPredicateOptions options "mint reservecoins redeem reservecoins"
+        ( ( valueAtAddress coinsMachineAddress (== (adaVal 5)))
+            .&&. assertNoFailedTransactions
+            .&&. walletFundsChange w2 ((reserveCoinsValue bp 5) <> (negate (adaVal 5)) 
+            -- <> 
+            -- (negate (oracleFeeMultiply 2))
+            )
+        )
+        $ mintAndRedeemReserveCoins 10 5
+    ,
+        --TODO improve on error testing to test specific log message of error
+        checkPredicateOptions options "mint stablecoins try redeem more stablecoins than minted should fail"
+        (  
+           assertContractError (coinsContract bp) (Trace.walletInstanceTag w2) (\_ -> True) "should throw insufficent funds"
+        )
+        $ mintAndRedeemStableCoins 10 15
+    ,
+        checkPredicateOptions options "mint reserve coins try redeem more reserve coins than minted should fail"
+        (  
+           assertContractError (coinsContract bp) (Trace.walletInstanceTag w2) (\_ -> True) "should throw insufficent funds"
+        )
+        $
+         mintAndRedeemReserveCoins 10 15
 
     
     ]

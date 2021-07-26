@@ -56,12 +56,11 @@ import Plutus.Contracts.Coins.Types
 --Stable coin mainly based on AGE usd protocol.
 --Alogrithimic rates of different coins based on actual amount of supply of tokens and base reserve amount.
 
-
 --Helper function to get validator address from current instance of state machine
 address :: BankParam -> Address
 address bp = Scripts.validatorAddress $ scriptInstance bp
 
---Get amount of lovelaces contained in a givenn value
+-- Get amount of lovelaces contained in a givenn value
 {-# INLINEABLE lovelaces #-}
 lovelaces :: Value -> Integer
 lovelaces = Ada.getLovelace . Ada.fromValue
@@ -71,12 +70,13 @@ lovelaces = Ada.getLovelace . Ada.fromValue
 {-# INLINEABLE transition #-}
 transition :: BankParam -> State CoinsMachineState -> BankInput -> Maybe (TxConstraints Void Void, State CoinsMachineState)
 transition bankParam@BankParam {oracleParam,oracleAddr} State {stateData = oldStateData} BankInput {bankInputAction, oracleOutput} = do
-  let (oref, oTxOut, rate) = oracleOutput
-      oValHash = toValidatorHash oracleAddr
+  let oValHash = toValidatorHash oracleAddr
   case oValHash of
     Nothing -> traceError "Invalid oracle validator hash"
     Just valHash-> do
-      let oNftValue = txOutValue oTxOut <> Ada.lovelaceValueOf (oFee oracleParam)
+      let (oref, oTxOut, rate) = oracleOutput
+          oNftValue = txOutValue oTxOut 
+      -- <>       Ada.lovelaceValueOf (oFee oracleParam)
           oracleConstraints = Constraints.mustSpendScriptOutput oref (Redeemer $ PlutusTx.toData Use) <>
                           Constraints.mustPayToOtherScript
                             valHash
@@ -243,7 +243,7 @@ bankMachine bankParam = SM.StateMachine{
 {-# INLINEABLE checkContext #-}
 checkContext :: BankParam -> CoinsMachineState -> BankInput -> ScriptContext -> Bool
 checkContext bankParam@BankParam{oracleAddr} oldBankState BankInput{oracleOutput} ctx = 
-    traceIfFalse "Invalid oracle use" isValidOracleUsed
+  traceIfFalse "Invalid oracle use" isValidOracleUsed
 
   where
     (_, _, rate) = oracleOutput
@@ -271,6 +271,7 @@ checkContext bankParam@BankParam{oracleAddr} oldBankState BankInput{oracleOutput
     -- Is rate provided in input is same as orcale value derived from oracle input of transaction
     isValidOracleUsed :: Bool
     isValidOracleUsed =  oracleValue' == rate
+
 
 -- Terminate the state machine currently the state machine is to be running forever
 {-# INLINEABLE isFinal #-}

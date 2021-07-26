@@ -53,14 +53,14 @@ data Oracle = Oracle
     { oNftSymbol   :: !CurrencySymbol -- Nft symbol to identify correct utxo for getting exchange rate
     , oOperator    :: !PubKeyHash      -- Public key hash of operator of oracle like for updating the price
     , oFee         :: !Integer          -- Fee taken by oracle to use its value as an exchange rate
-    } deriving (Prelude.Show, Generic, FromJSON, ToJSON, Prelude.Eq, Prelude.Ord)
+    } deriving (Prelude.Show, Generic, FromJSON, ToJSON)
 
 PlutusTx.makeLift ''Oracle
 PlutusTx.unstableMakeIsData ''Oracle
 
 --Redeemer for Update and Use action provided in oracle contract
 data OracleRedeemer = Update | Use
-    deriving Prelude.Show
+    -- deriving Prelude.Show
 
 PlutusTx.unstableMakeIsData ''OracleRedeemer
 
@@ -85,7 +85,7 @@ oracleValue o f = do
 --Oracle validator for checking update and use of oracle value
 {-# INLINABLE mkOracleValidator #-}
 mkOracleValidator :: Oracle -> Integer -> OracleRedeemer -> ScriptContext -> Bool
-mkOracleValidator oracle x r ctx =
+mkOracleValidator oracle x r ctx = 
     traceIfFalse "token missing from input"  inputHasToken  &&
     traceIfFalse "token missing from output" outputHasToken &&
     case r of

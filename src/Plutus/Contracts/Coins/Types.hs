@@ -53,7 +53,7 @@ data CoinsMachineState = CoinsMachineState
     reserveCoinAmount :: Integer, -- Current amount of reserve coins in circulation
     policyScript :: MonetaryPolicyHash -- Policy script used for minting of coins
   }
-  deriving stock (Generic, Prelude.Eq, Prelude.Show)
+  deriving stock (Generic,Prelude.Show)
   deriving anyclass (ToJSON, FromJSON)
 
 --Parameter to parameterized stable coin contract statemachine
@@ -67,7 +67,7 @@ data BankParam = BankParam
     oracleAddr :: Address, -- Address of the oracle used to get oracle value to verify its integrity that value is obtained from this oracle address
     bankFee :: Ratio Integer -- Fees charged by contract to contirbute some portion of forged amount to kept in reserve
   }
-  deriving stock (Generic, Prelude.Ord, Prelude.Eq, Prelude.Show)
+  deriving stock (Generic, Prelude.Show)
   deriving anyclass (ToJSON, FromJSON)
 
 -- Actions that can be performed in stable coin contract
@@ -76,7 +76,7 @@ data BankInputAction
   | RedeemStableCoin Integer
   | MintReserveCoin Integer
   | RedeemReserveCoin Integer
-  deriving stock (Generic, Prelude.Eq, Prelude.Show)
+  deriving stock (Generic, Prelude.Show)
   deriving anyclass (ToJSON, FromJSON)
 
 type OracleOutput = (TxOutRef, TxOut, Integer) 
@@ -87,7 +87,7 @@ data BankInput = BankInput
     bankInputAction :: BankInputAction, --Action to be performed on contract
     oracleOutput :: OracleOutput -- Oracle output used in the contract to get exchange rate
   }
-  deriving stock (Generic, Prelude.Eq, Prelude.Show)
+  deriving stock (Generic)
   deriving anyclass (ToJSON, FromJSON)
 
 --Data used from the endpoint to be used as input of contract definitions
@@ -95,7 +95,7 @@ data EndpointInput = EndpointInput
   { 
     tokenAmount :: Integer -- Tokens amount to be forged
   }
-  deriving stock (Generic, Prelude.Eq, Prelude.Show)
+  deriving stock (Generic)
   deriving anyclass (ToJSON, FromJSON, ToSchema)
 
 --Data used for getting current exchange rates of peg, stable coin and reserve coin
@@ -105,7 +105,7 @@ data Rates = Rates
     scRate :: Integer, -- Current stable coin exchange rate for 1 stable coin
     rcRate :: Integer -- Curretn reserve coin exchange rate for 1 reserve coin
   }
-  deriving stock (Generic, Prelude.Eq, Prelude.Show)
+  deriving stock (Generic,Prelude.Show)
   deriving anyclass (ToJSON, FromJSON)
 
 --Used as json key to unify response of current rates
@@ -113,7 +113,7 @@ data RatesResponse = RatesResponse
   { 
     currentCoinsRates :: Rates
   }
-  deriving stock (Generic, Prelude.Eq, Prelude.Show)
+  deriving stock (Generic,Prelude.Show)
   deriving anyclass (ToJSON, FromJSON)
 
 --Used as json key to unify response of current state of the statemachine
@@ -121,7 +121,7 @@ data StateResponse = StateResponse
   { 
     currentCoinsState :: CoinsMachineState
   }
-  deriving stock (Generic, Prelude.Eq, Prelude.Show)
+  deriving stock (Generic,Prelude.Show)
   deriving anyclass (ToJSON, FromJSON)
 
 

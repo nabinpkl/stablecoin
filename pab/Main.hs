@@ -109,7 +109,7 @@ waitForLast cid =
         _                       -> Nothing
 
 data StableContracts = StableContract BankParam | OracleContract
-    deriving (Eq, Ord, Show, Generic)
+    deriving (Show, Generic)
 
 instance ToJSON StableContracts where
   toJSON = genericToJSON defaultOptions {
