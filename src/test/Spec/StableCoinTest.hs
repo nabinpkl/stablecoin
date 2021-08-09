@@ -98,12 +98,12 @@ adaVal x = Ada.lovelaceValueOf x
 initialAdaValue :: Value
 initialAdaValue = adaVal 100_000_000
 
--- oracleFee :: Value
--- oracleFee = adaVal $ oFee oracle
+oracleFee :: Value
+oracleFee = adaVal $ oFee oracle
 
---value of oracle for getting multiple time oracle used in same test
--- oracleFeeMultiply :: Integer -> Value
--- oracleFeeMultiply mulBy = adaVal (oFee oracle * mulBy)
+-- value of oracle for getting multiple time oracle used in same test
+oracleFeeMultiply :: Integer -> Value
+oracleFeeMultiply mulBy = adaVal (oFee oracle * mulBy)
 
 oracleToken :: Value
 oracleToken =
@@ -140,8 +140,8 @@ tests =
               .&&. 
               assertNoFailedTransactions
               .&&. walletFundsChange w2 ((stableCoinsValue bp 100) <> (negate (adaVal 100)) 
-              -- <> 
-              -- (negate oracleFee)
+              <> 
+              (negate oracleFee)
               )
           )
       $ mintStableCoins 100
@@ -150,8 +150,8 @@ tests =
         ( (valueAtAddress coinsMachineAddress (== (adaVal 100)))
             .&&. assertNoFailedTransactions
             .&&. walletFundsChange w2 ((reserveCoinsValue bp 100) <> (negate (adaVal 100)) 
-            -- <> 
-            -- (negate oracleFee)
+            <> 
+            (negate oracleFee)
             )
         )
         $ mintReserveCoins 100
@@ -164,8 +164,8 @@ tests =
         ( ( valueAtAddress coinsMachineAddress (== (adaVal 5)))
             .&&. assertNoFailedTransactions
             .&&. walletFundsChange w2 ((stableCoinsValue bp 5) <> (negate (adaVal 5)) 
-            -- <> 
-            -- (negate (oracleFeeMultiply 2))
+            <> 
+            (negate (oracleFeeMultiply 2))
             )
         )
         $ mintAndRedeemStableCoins 10 5
@@ -174,8 +174,8 @@ tests =
         ( ( valueAtAddress coinsMachineAddress (== (adaVal 5)))
             .&&. assertNoFailedTransactions
             .&&. walletFundsChange w2 ((reserveCoinsValue bp 5) <> (negate (adaVal 5)) 
-            -- <> 
-            -- (negate (oracleFeeMultiply 2))
+            <> 
+            (negate (oracleFeeMultiply 2))
             )
         )
         $ mintAndRedeemReserveCoins 10 5

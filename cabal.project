@@ -40,7 +40,7 @@ source-repository-package
 
 
 package stable-coin-starter
-  coverage: True
+  coverage: False
 
 package ouroboros-network
   coverage: False

@@ -64,6 +64,9 @@ main =
 
     cidOracle <- Simulator.activateContract (Wallet 1) OracleContract
 
+    liftIO $ writeFile "oracle.cid" $ show $ unContractInstanceId cidOracle
+
+
     oracle    <- flip Simulator.waitForState cidOracle $ \json -> case (fromJSON json :: Result (Monoid.Last (Oracle))) of
                     Success (Monoid.Last (Just x)) -> Just x
                     _                              -> Nothing

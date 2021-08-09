@@ -76,7 +76,8 @@ transition bankParam@BankParam {oracleParam,oracleAddr} State {stateData = oldSt
     Just valHash-> do
       let (oref, oTxOut, rate) = oracleOutput
           oNftValue = txOutValue oTxOut 
-      -- <>       Ada.lovelaceValueOf (oFee oracleParam)
+              <> Ada.lovelaceValueOf (oFee oracleParam)
+              --TODO MAP of constraints for all oracle
           oracleConstraints = Constraints.mustSpendScriptOutput oref (Redeemer $ PlutusTx.toData Use) <>
                           Constraints.mustPayToOtherScript
                             valHash
@@ -102,38 +103,42 @@ transition bankParam@BankParam {oracleParam,oracleAddr} State {stateData = oldSt
           state
         )
 
--- stableCoinFees:: 
-
--- reserveCoinFees::
+-- Calculate fees 
+calcFees :: BankParam -> Integer -> Integer
+calcFees bankParam amount = round ( (fromInteger amount) * (bankFee bankParam) )
 
 -- Get state and contratins based on the input action called by the user
+--TODO Refactor common function inside minting and redeeming cases
 {-# INLINEABLE stateWithConstraints #-}
 stateWithConstraints :: BankParam -> CoinsMachineState -> BankInputAction -> Integer -> Integer-> (TxConstraints Void Void, CoinsMachineState)
 stateWithConstraints bankParam oldStateData bankInputAction scRate rcRate= case bankInputAction of
         MintReserveCoin rcAmt ->
           let constraints = Constraints.mustForgeCurrency (policyScript oldStateData) (reserveCoinTokenName bankParam) rcAmt
               valueInBaseCurrency = rcAmt * rcRate
-              newBaseReserve = baseReserveAmount oldStateData + valueInBaseCurrency
+              feesValue = calcFees bankParam valueInBaseCurrency 
+              newBaseReserve = baseReserveAmount oldStateData + valueInBaseCurrency + feesValue
            in ( constraints,
                 oldStateData
                   { reserveCoinAmount = reserveCoinAmount oldStateData + rcAmt,
                     baseReserveAmount = newBaseReserve
-                  }
+                  }              
               )
         RedeemReserveCoin rcAmt ->
           let constraints = Constraints.mustForgeCurrency (policyScript oldStateData) (reserveCoinTokenName bankParam) (negate rcAmt)
               valueInBaseCurrency = rcAmt * rcRate
-              newBaseReserve = baseReserveAmount oldStateData - valueInBaseCurrency
+              feesValue = calcFees bankParam valueInBaseCurrency 
+              newBaseReserve = baseReserveAmount oldStateData - valueInBaseCurrency + feesValue
            in ( constraints,
                 oldStateData
                   { reserveCoinAmount = reserveCoinAmount oldStateData - rcAmt,
                     baseReserveAmount = newBaseReserve
-                  }
+                  }              
               )
         MintStableCoin scAmt ->
           let constraints = Constraints.mustForgeCurrency (policyScript oldStateData) (stableCoinTokenName bankParam) scAmt
               valueInBaseCurrency = scAmt * scRate
-              newBaseReserve = baseReserveAmount oldStateData + valueInBaseCurrency
+              feesValue = calcFees bankParam valueInBaseCurrency 
+              newBaseReserve = baseReserveAmount oldStateData + valueInBaseCurrency + feesValue
            in ( constraints,
                 oldStateData
                   { stableCoinAmount = stableCoinAmount oldStateData + scAmt,
@@ -143,7 +148,8 @@ stateWithConstraints bankParam oldStateData bankInputAction scRate rcRate= case 
         RedeemStableCoin scAmt ->
           let constraints = Constraints.mustForgeCurrency (policyScript oldStateData) (stableCoinTokenName bankParam) (negate scAmt)
               valueInBaseCurrency = scAmt * scRate
-              newBaseReserve = baseReserveAmount oldStateData - valueInBaseCurrency
+              feesValue = calcFees bankParam valueInBaseCurrency 
+              newBaseReserve = baseReserveAmount oldStateData - valueInBaseCurrency + feesValue
            in ( constraints,
                 oldStateData
                   { stableCoinAmount = stableCoinAmount oldStateData - scAmt,
@@ -190,7 +196,7 @@ shouldTransitToNextState bankParam bankState@CoinsMachineState {baseReserveAmoun
     
   case maxReserveRequired of
     Just maxR -> do
-        unless (currentReserveAmount <= maxR) (throwError "Invalid state : Base reserve amount is more than maximum required amount.")
+        unless (currentReserveAmount <= maxR) (throwError "InNBLvalid state : Base reserve amount is more than maximum required amount.")
     Nothing -> pure ()
 
 --Calculate the min reserve required for contract from current stable coin value with min reserve ratio defined in contract
