@@ -82,7 +82,8 @@ main =
             rcDefaultRate = 1000000,
             oracleParam = oracle,
             oracleAddr = oracleAddress oracle,
-            bankFee = 2 % 100
+            bankFee = 2 % 100,
+            bankCurrencyAsset = Value.assetClass adaSymbol adaToken
             }
 
     w1cid <- Simulator.activateContract (Wallet 1) $ StableContract bp

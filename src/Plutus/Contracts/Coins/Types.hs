@@ -65,7 +65,8 @@ data BankParam = BankParam
     rcDefaultRate :: Integer, -- Default rate of reserve token if there are no reserve coins minted yet
     oracleParam :: Oracle,    -- Oracle used to getting exchange rate
     oracleAddr :: Address, -- Address of the oracle used to get oracle value to verify its integrity that value is obtained from this oracle address
-    bankFee :: Ratio Integer -- Fees charged by contract to contirbute some portion of forged amount to kept in reserve
+    bankFee :: Ratio Integer, -- Fees charged by contract to contirbute some portion of forged amount to kept in reserve,
+    bankCurrencyAsset :: AssetClass -- Underlying base currency which is locked by bank in which tokens exchange happens
   }
   deriving stock (Generic, Prelude.Show)
   deriving anyclass (ToJSON, FromJSON)

@@ -73,7 +73,8 @@ bp = BankParam
             rcDefaultRate = 1,
             oracleParam = oracle,
             oracleAddr = oracleAddress oracle,
-            bankFee = 2 % 100
+            bankFee = 2 % 100,
+            bankCurrencyAsset = Value.assetClass Ada.adaSymbol Ada.adaToken
             }
 
 coinsMachineAddress :: Address

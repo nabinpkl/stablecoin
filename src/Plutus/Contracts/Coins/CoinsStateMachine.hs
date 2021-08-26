@@ -104,8 +104,8 @@ transition bankParam@BankParam {oracleParam,oracleAddr} State {stateData = oldSt
         )
 
 -- Calculate fees 
-calcFees :: BankParam -> Integer -> Integer
-calcFees bankParam amount = round ( (fromInteger amount) * (bankFee bankParam) )
+getFeesAmount :: BankParam -> Integer -> Integer
+getFeesAmount bankParam amount = round ( (fromInteger amount) * (bankFee bankParam) )
 
 -- Get state and contratins based on the input action called by the user
 --TODO Refactor common function inside minting and redeeming cases
@@ -115,7 +115,7 @@ stateWithConstraints bankParam oldStateData bankInputAction scRate rcRate= case 
         MintReserveCoin rcAmt ->
           let constraints = Constraints.mustForgeCurrency (policyScript oldStateData) (reserveCoinTokenName bankParam) rcAmt
               valueInBaseCurrency = rcAmt * rcRate
-              feesValue = calcFees bankParam valueInBaseCurrency 
+              feesValue = getFeesAmount bankParam valueInBaseCurrency 
               newBaseReserve = baseReserveAmount oldStateData + valueInBaseCurrency + feesValue
            in ( constraints,
                 oldStateData
@@ -126,7 +126,7 @@ stateWithConstraints bankParam oldStateData bankInputAction scRate rcRate= case 
         RedeemReserveCoin rcAmt ->
           let constraints = Constraints.mustForgeCurrency (policyScript oldStateData) (reserveCoinTokenName bankParam) (negate rcAmt)
               valueInBaseCurrency = rcAmt * rcRate
-              feesValue = calcFees bankParam valueInBaseCurrency 
+              feesValue = getFeesAmount bankParam valueInBaseCurrency 
               newBaseReserve = baseReserveAmount oldStateData - valueInBaseCurrency + feesValue
            in ( constraints,
                 oldStateData
@@ -137,7 +137,7 @@ stateWithConstraints bankParam oldStateData bankInputAction scRate rcRate= case 
         MintStableCoin scAmt ->
           let constraints = Constraints.mustForgeCurrency (policyScript oldStateData) (stableCoinTokenName bankParam) scAmt
               valueInBaseCurrency = scAmt * scRate
-              feesValue = calcFees bankParam valueInBaseCurrency 
+              feesValue = getFeesAmount bankParam valueInBaseCurrency 
               newBaseReserve = baseReserveAmount oldStateData + valueInBaseCurrency + feesValue
            in ( constraints,
                 oldStateData
@@ -148,7 +148,7 @@ stateWithConstraints bankParam oldStateData bankInputAction scRate rcRate= case 
         RedeemStableCoin scAmt ->
           let constraints = Constraints.mustForgeCurrency (policyScript oldStateData) (stableCoinTokenName bankParam) (negate scAmt)
               valueInBaseCurrency = scAmt * scRate
-              feesValue = calcFees bankParam valueInBaseCurrency 
+              feesValue = getFeesAmount bankParam valueInBaseCurrency 
               newBaseReserve = baseReserveAmount oldStateData - valueInBaseCurrency + feesValue
            in ( constraints,
                 oldStateData
@@ -169,7 +169,7 @@ calcEquity bs@CoinsMachineState {baseReserveAmount} rate =
 calcReserveCoinRate :: BankParam -> CoinsMachineState -> Integer -> Integer
 calcReserveCoinRate BankParam {rcDefaultRate} bs@CoinsMachineState {reserveCoinAmount} rate
   | reserveCoinAmount /= 0 = rcRate
-  | otherwise = rate
+  | otherwise = rcDefaultRate
   where
     equity = calcEquity bs rate
     rcRate = equity `divide` reserveCoinAmount

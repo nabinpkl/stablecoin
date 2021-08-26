@@ -11,7 +11,7 @@ import Control.Monad.IO.Class (MonadIO (..))
 import Data.ByteString        (ByteString)
 import Data.ByteString.Char8  (unpack)
 import Data.Proxy             (Proxy (..))
-import Data.Text              (pack)
+import Data.Text              (pack, Text)
 import Data.UUID
 import Network.HTTP.Req
 import Text.Regex.TDFA
@@ -45,12 +45,17 @@ updateOracle uuid x = runReq defaultHttpConfig $ do
 
 getExchangeRate :: IO Integer
 getExchangeRate = runReq defaultHttpConfig $ do
+    let apiKeyHeader = header "X-CMC_PRO_API_KEY" "6751fec4-15a6-4892-83db-f73ba8d4d27f"
     v <- req
         GET
         (https "coinmarketcap.com" /: "currencies" /: "cardano")
         NoReqBody
         bsResponse
-        mempty
+        $ apiKeyHeader <> 
+        "start" =: (1::Integer) <>
+        "limit" =: (5000::Integer) <>
+        "convert" =: ("USD" ::Text) <>
+        "id" =: (2010:: Integer)
     let priceRegex      = "priceValue___11gHJ \">\\$([\\.0-9]*)" :: ByteString
         (_, _, _, [bs]) = responseBody v =~ priceRegex :: (ByteString, ByteString, ByteString, [ByteString])
         d               = read $ unpack bs :: Double
