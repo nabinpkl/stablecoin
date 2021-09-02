@@ -16,7 +16,7 @@
 module Plutus.Contracts.Coins.Endpoints
   ( 
     BankStateSchema,
-    coinsContract,
+    coinsEndpoints,
   )
 where
 
@@ -62,13 +62,16 @@ initialState smClient =
     { baseReserveAmount = 0,
       stableCoinAmount = 0,
       reserveCoinAmount = 0,
-      policyScript = forwardMPS smClient
+      policyScript = forwardMPS smClient,
+      bankFee = 1 % 100,
+      contractStatus = Running
     }
 
 --Helper to convert SM contract error to Text error
 mapError' :: Contract w s SMContractError a -> Contract w s Text a
 mapError' = mapError $ pack . Prelude.show
 
+--TODO check for handling multiple start call
 --Endpoint to start the stable coint contract with  parameters supplied to banks
 start :: HasBlockchainActions s => BankParam -> Integer -> Contract w s Text ()
 start bankParam _ = do
@@ -82,7 +85,6 @@ smRunStep :: HasBlockchainActions s => BankParam -> BankInputAction -> Contract 
 smRunStep bankParam@BankParam{oracleParam} bankInputAction = do
   let client = machineClient (scriptInstance bankParam) bankParam
 
---TODO map different oracles pool into one.
   oracle <- findOracle oracleParam
   
   case oracle of
@@ -91,11 +93,8 @@ smRunStep bankParam@BankParam{oracleParam} bankInputAction = do
       let lookups = Constraints.unspentOutputs (Map.singleton oref o)
                     <> Constraints.otherScript (oracleValidator oracleParam)               
                                  
-          input =
-            BankInput
-              { bankInputAction = bankInputAction
-              , oracleOutput = (oref, txOutTxOut o, x)
-              }
+          input = BankInput bankInputAction (oref, txOutTxOut o, x)
+              
 
       result <-  mapError' $ SmUtil.runStepWith client input lookups
       
@@ -123,6 +122,34 @@ mintReserveCoin bankParam EndpointInput{tokenAmount} = smRunStep bankParam $ Min
 redeemReserveCoin :: HasBlockchainActions s => BankParam -> EndpointInput -> Contract w s Text ()
 redeemReserveCoin bankParam EndpointInput{tokenAmount} = smRunStep bankParam $ RedeemReserveCoin tokenAmount
 
+updateBankFee :: HasBlockchainActions s => BankParam -> BankFeeInput -> Contract w s Text ()
+updateBankFee bankParam BankFeeInput{percentIntValue} = do
+  let client = machineClient (scriptInstance bankParam) bankParam
+      input = UpdateBankFee percentIntValue
+      
+  result <- mapError' $ SM.runStep client input
+  case result of
+    SM.TransitionFailure e -> do
+      void $ logInfo @Prelude.String $ "Transistion Faliure "
+      throwError "Transistion Faliure"
+    _ -> do
+      void $ logInfo @Prelude.String $ "Endpoint call completed " ++ Prelude.show input
+
+updateContractStatus :: HasBlockchainActions s => BankParam -> ContractStatusInput -> Contract w s Text ()
+updateContractStatus bankParam ContractStatusInput{shouldPause} = do
+  let client = machineClient (scriptInstance bankParam) bankParam
+      input = UpdateContractStatus shouldPause
+              
+  result <- mapError' $ SM.runStep client input
+
+  case result of
+    SM.TransitionFailure e -> do
+      void $ logInfo @Prelude.String $ "Transistion Faliure Couldn't proceed further."
+      throwError "Transistion Faliure"
+    _ -> do
+      void $ logInfo @Prelude.String $ "Endpoint call completed " ++ Prelude.show input
+
+
 --Endpoint definitions availabe for the stable coin contract
 type BankStateSchema =
   BlockchainActions
@@ -131,39 +158,54 @@ type BankStateSchema =
     .\/ Endpoint "redeemStableCoin" EndpointInput
     .\/ Endpoint "mintReserveCoin" EndpointInput
     .\/ Endpoint "redeemReserveCoin" EndpointInput
+    .\/ Endpoint "updateBankFee" BankFeeInput
+    .\/ Endpoint "updateContractStatus" ContractStatusInput
 
     .\/ Endpoint "funds" Prelude.String
     .\/ Endpoint "currentState" Prelude.String
     .\/ Endpoint "currentRates" Prelude.String
 
+
+coinsEndpoints :: BankParam -> Contract [Types.Value] BankStateSchema Text ()
+coinsEndpoints bankParam = coinsContract bankParam >> coinsEndpoints bankParam
+
+
 --TODO writer value [Types.Value]
 --Starting point of the contract which combines all the endpoints to be available for call
 coinsContract :: BankParam -> Contract [Types.Value] BankStateSchema Text ()
-coinsContract bankParam =
-  ( 
-    start'
-      `select`
-       mintStableCoin'
-      `select` redeemStableCoin'
-      `select` mintReserveCoin'
-      `select` redeemReserveCoin'
+coinsContract bankParam = handleError handler (void selections)
+  where 
+    selections=
+      ( 
+        start'
+          `select` mintStableCoin'
+          `select` redeemStableCoin'
+          `select` mintReserveCoin'
+          `select` redeemReserveCoin'
+          `select` updateBankFee'
+          `select` updateContractStatus'
 
-      `select` ownFunds'
-      `select` currentState'
-      `select` currentRates'
-  )
-    >> coinsContract bankParam
-  where
+          `select` ownFunds'
+          `select` currentState'
+          `select` currentRates'
+      )
     --TODO handle state for multiple start endpoint call
     start' = endpoint @"start" >>= start bankParam
     mintStableCoin' = endpoint @"mintStableCoin" >>= mintStableCoin bankParam
     redeemStableCoin' = endpoint @"redeemStableCoin" >>= redeemStableCoin bankParam
     mintReserveCoin' = endpoint @"mintReserveCoin" >>= mintReserveCoin bankParam
     redeemReserveCoin' = endpoint @"redeemReserveCoin" >>= redeemReserveCoin bankParam
+    updateBankFee' = endpoint @"updateBankFee" >>= updateBankFee bankParam
+    updateContractStatus' = endpoint @"updateContractStatus" >>= updateContractStatus bankParam
     
     ownFunds' = endpoint @"funds" >> ownFunds bankParam
     currentState' = endpoint @"currentState" >> currentCoinsMachineState bankParam
     currentRates' = endpoint @"currentRates" >> currentRates bankParam
+
+    handler :: Prelude.Show a => a -> Contract w s e ()
+    handler e = do
+        Contract.logError $ Prelude.show e
+
 
 --Endpoint for getting current funds held in a users public key
 ownFunds:: HasBlockchainActions s => BankParam -> Contract [Types.Value ] s Text  ()

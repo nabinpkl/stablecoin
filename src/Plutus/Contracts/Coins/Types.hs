@@ -22,11 +22,15 @@
 
 
 module Plutus.Contracts.Coins.Types
-  ( CoinsMachineState (..),
+  ( 
+    CoinsMachineState (..),
+    ContractStatus (..),
     BankParam (..),
     BankInput (..),
     BankInputAction (..),
     EndpointInput (..),
+    BankFeeInput (..),
+    ContractStatusInput (..),
     RatesResponse (..),
     Rates (..),
     StateResponse (..),
@@ -46,12 +50,20 @@ import           Ledger                        hiding (to)
 import           Playground.Contract           (ToSchema)
 
 
+data ContractStatus = Paused | Running
+  deriving stock (Generic,Prelude.Show)
+  deriving anyclass (ToJSON, FromJSON)
+
+
 --State hold by the statemachine
 data CoinsMachineState = CoinsMachineState
   { baseReserveAmount :: Integer, -- Current amount of ada reserves held in contract
     stableCoinAmount :: Integer, -- Current amount of stable coins in circulation
     reserveCoinAmount :: Integer, -- Current amount of reserve coins in circulation
-    policyScript :: MonetaryPolicyHash -- Policy script used for minting of coins
+    policyScript :: MonetaryPolicyHash, -- Policy script used for minting of coins
+    bankFee :: Ratio Integer, -- Fees charged by contract to contirbute some portion of forged amount to kept in reserve,
+                              -- Used as state so that it can be changed by smart contract owner or starter Not hardcoded into contract param
+    contractStatus :: ContractStatus
   }
   deriving stock (Generic,Prelude.Show)
   deriving anyclass (ToJSON, FromJSON)
@@ -65,8 +77,8 @@ data BankParam = BankParam
     rcDefaultRate :: Integer, -- Default rate of reserve token if there are no reserve coins minted yet
     oracleParam :: Oracle,    -- Oracle used to getting exchange rate
     oracleAddr :: Address, -- Address of the oracle used to get oracle value to verify its integrity that value is obtained from this oracle address
-    bankFee :: Ratio Integer, -- Fees charged by contract to contirbute some portion of forged amount to kept in reserve,
-    bankCurrencyAsset :: AssetClass -- Underlying base currency which is locked by bank in which tokens exchange happens
+    bankCurrencyAsset :: AssetClass, -- Underlying base currency which is locked by bank in which tokens exchange happens
+    bankContractOwner :: PubKeyHash  -- Owner of the bank contract who can update certain contract state
   }
   deriving stock (Generic, Prelude.Show)
   deriving anyclass (ToJSON, FromJSON)
@@ -83,12 +95,11 @@ data BankInputAction
 type OracleOutput = (TxOutRef, TxOut, Integer) 
 
 -- Redeemer input for updating the state of the contract
-data BankInput = BankInput
-  { 
-    bankInputAction :: BankInputAction, --Action to be performed on contract
-    oracleOutput :: OracleOutput -- Oracle output used in the contract to get exchange rate
-  }
-  deriving stock (Generic)
+data BankInput = BankInput BankInputAction OracleOutput 
+                | UpdateBankFee Integer 
+                | UpdateContractStatus Bool
+
+  deriving stock (Generic, Prelude.Show)
   deriving anyclass (ToJSON, FromJSON)
 
 --Data used from the endpoint to be used as input of contract definitions
@@ -98,6 +109,23 @@ data EndpointInput = EndpointInput
   }
   deriving stock (Generic)
   deriving anyclass (ToJSON, FromJSON, ToSchema)
+
+--Data used from the endpoint to be used as input of contract definitions
+data BankFeeInput = BankFeeInput
+  { 
+    percentIntValue :: Integer -- Numerator value of percent in integer eg: 1 Percent
+  }
+  deriving stock (Generic)
+  deriving anyclass (ToJSON, FromJSON, ToSchema)
+
+--Data used from the endpoint to be used as input of contract definitions
+data ContractStatusInput = ContractStatusInput
+  { 
+    shouldPause :: Bool -- Numerator value of percent in integer eg: 1 Percent
+  }
+  deriving stock (Generic,Prelude.Show)
+  deriving anyclass (ToJSON, FromJSON, ToSchema)
+
 
 --Data used for getting current exchange rates of peg, stable coin and reserve coin
 data Rates = Rates
@@ -125,9 +153,10 @@ data StateResponse = StateResponse
   deriving stock (Generic,Prelude.Show)
   deriving anyclass (ToJSON, FromJSON)
 
-
+PlutusTx.makeLift ''ContractStatus
 PlutusTx.makeLift ''CoinsMachineState
 PlutusTx.makeLift ''BankParam
+PlutusTx.unstableMakeIsData ''ContractStatus
 PlutusTx.unstableMakeIsData ''CoinsMachineState
 PlutusTx.unstableMakeIsData ''BankParam
 PlutusTx.unstableMakeIsData ''BankInput

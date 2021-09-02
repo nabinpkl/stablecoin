@@ -73,6 +73,8 @@ main =
  
     Simulator.logString @(Builtin StableContracts) $ "Started oracle contract" ++ show oracle
 
+    let pkh1 = pubKeyHash $ walletPubKey $ Wallet 1
+
     let bp =
           BankParam
             { stableCoinTokenName = stableCoinName,
@@ -82,8 +84,8 @@ main =
             rcDefaultRate = 1000000,
             oracleParam = oracle,
             oracleAddr = oracleAddress oracle,
-            bankFee = 2 % 100,
-            bankCurrencyAsset = Value.assetClass adaSymbol adaToken
+            bankCurrencyAsset = Value.assetClass adaSymbol adaToken,
+            bankContractOwner = pkh1
             }
 
     w1cid <- Simulator.activateContract (Wallet 1) $ StableContract bp
@@ -147,7 +149,7 @@ handleTokenContract = Builtin.handleBuiltin getSchema getContract where
       StableContract _       -> Builtin.endpointsToSchemas @(BankStateSchema .\\ BlockchainActions)
     getContract = \case
       OracleContract         -> SomeBuiltin $ runOracle
-      StableContract bankParam-> SomeBuiltin $ coinsContract bankParam
+      StableContract bankParam-> SomeBuiltin $ coinsEndpoints bankParam
 
 handlers :: SimulatorEffectHandlers (Builtin StableContracts)
 handlers =

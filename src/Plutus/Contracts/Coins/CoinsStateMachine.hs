@@ -65,47 +65,77 @@ address bp = Scripts.validatorAddress $ scriptInstance bp
 lovelaces :: Value -> Integer
 lovelaces = Ada.getLovelace . Ada.fromValue
 
---TODO fee calculation
+
 -- Transition function for state machine to validate and get new state and constraints for state machine
 {-# INLINEABLE transition #-}
 transition :: BankParam -> State CoinsMachineState -> BankInput -> Maybe (TxConstraints Void Void, State CoinsMachineState)
-transition bankParam@BankParam {oracleParam,oracleAddr} State {stateData = oldStateData} BankInput {bankInputAction, oracleOutput} = do
-  let oValHash = toValidatorHash oracleAddr
-  case oValHash of
-    Nothing -> traceError "Invalid oracle validator hash"
-    Just valHash-> do
-      let (oref, oTxOut, rate) = oracleOutput
-          oNftValue = txOutValue oTxOut 
-              <> Ada.lovelaceValueOf (oFee oracleParam)
-              --TODO MAP of constraints for all oracle
-          oracleConstraints = Constraints.mustSpendScriptOutput oref (Redeemer $ PlutusTx.toData Use) <>
-                          Constraints.mustPayToOtherScript
-                            valHash
-                            (Datum $ PlutusTx.toData rate)
-                            oNftValue
-          rcRate = calcReserveCoinRate bankParam oldStateData rate
-          scRate = calcStableCoinRate oldStateData rate
-          (newConstraints, newStateData) = stateWithConstraints bankParam oldStateData bankInputAction scRate rcRate
-          eitherValidState = shouldTransitToNextState bankParam newStateData rate
+transition bankParam@BankParam {oracleParam,oracleAddr} oldState@State {stateData = oldStateData} bankInput = 
 
-      guard (isRight eitherValidState)
-      
-      let state =
-            State
-              { stateData = newStateData,
-                stateValue = Ada.lovelaceValueOf (baseReserveAmount newStateData)
-              }
+  case bankInput of 
+    --Update contract status to running or paused
+    UpdateContractStatus shouldPause ->
+      let constraints = Constraints.mustBeSignedBy (bankContractOwner bankParam)
+      in pure (
+        constraints,
+        oldState {
+          stateData = oldStateData
+            {
+              contractStatus =  if shouldPause then Paused else Running
+            }
+        }
+      )
+    --Upate bank fee case can be handled directly without hadling cases for oracle requirement like minting
+    UpdateBankFee bankFeePercentValue ->
+      let constraints = Constraints.mustBeSignedBy (bankContractOwner bankParam)
+      in pure (
+        constraints,
+        oldState {
+          stateData = oldStateData
+            {
+              bankFee = bankFeePercentValue % 100
+            }
+        }
+      )
 
-      pure
-        ( newConstraints
-          <> oracleConstraints
-          ,
-          state
-        )
+    BankInput bankInputAction oracleOutput -> case contractStatus oldStateData of
+      Paused -> Nothing
+      Running -> do
+        let oValHash = toValidatorHash oracleAddr
+        case oValHash of
+          Nothing -> Nothing
+          Just valHash-> do
+            let (oref, oTxOut, rate) = oracleOutput
+                oNftValue = txOutValue oTxOut 
+                    <> Ada.lovelaceValueOf (oFee oracleParam)
+
+                oracleConstraints = Constraints.mustSpendScriptOutput oref (Redeemer $ PlutusTx.toData Use) <>
+                                Constraints.mustPayToOtherScript
+                                  valHash
+                                  (Datum $ PlutusTx.toData rate)
+                                  oNftValue
+                rcRate = calcReserveCoinRate bankParam oldStateData rate
+                scRate = calcStableCoinRate oldStateData rate
+                (newConstraints, newStateData) = stateWithConstraints bankParam oldStateData bankInputAction scRate rcRate
+                eitherValidState = shouldTransitToNextState bankParam newStateData rate
+
+            guard (isRight eitherValidState)
+            
+            let state =
+                  State
+                    { stateData = newStateData,
+                      stateValue = Ada.lovelaceValueOf (baseReserveAmount newStateData)
+                    }
+
+            pure
+              ( newConstraints
+                <> oracleConstraints
+                ,
+                state
+              )
 
 -- Calculate fees 
-getFeesAmount :: BankParam -> Integer -> Integer
-getFeesAmount bankParam amount = round ( (fromInteger amount) * (bankFee bankParam) )
+getFeesAmount :: CoinsMachineState -> Integer -> Integer
+getFeesAmount bankState amount = round ( (fromInteger amount) * (bankFee bankState) )
 
 -- Get state and contratins based on the input action called by the user
 --TODO Refactor common function inside minting and redeeming cases
@@ -115,7 +145,7 @@ stateWithConstraints bankParam oldStateData bankInputAction scRate rcRate= case 
         MintReserveCoin rcAmt ->
           let constraints = Constraints.mustForgeCurrency (policyScript oldStateData) (reserveCoinTokenName bankParam) rcAmt
               valueInBaseCurrency = rcAmt * rcRate
-              feesValue = getFeesAmount bankParam valueInBaseCurrency 
+              feesValue = getFeesAmount oldStateData valueInBaseCurrency 
               newBaseReserve = baseReserveAmount oldStateData + valueInBaseCurrency + feesValue
            in ( constraints,
                 oldStateData
@@ -126,7 +156,7 @@ stateWithConstraints bankParam oldStateData bankInputAction scRate rcRate= case 
         RedeemReserveCoin rcAmt ->
           let constraints = Constraints.mustForgeCurrency (policyScript oldStateData) (reserveCoinTokenName bankParam) (negate rcAmt)
               valueInBaseCurrency = rcAmt * rcRate
-              feesValue = getFeesAmount bankParam valueInBaseCurrency 
+              feesValue = getFeesAmount oldStateData valueInBaseCurrency 
               newBaseReserve = baseReserveAmount oldStateData - valueInBaseCurrency + feesValue
            in ( constraints,
                 oldStateData
@@ -137,7 +167,7 @@ stateWithConstraints bankParam oldStateData bankInputAction scRate rcRate= case 
         MintStableCoin scAmt ->
           let constraints = Constraints.mustForgeCurrency (policyScript oldStateData) (stableCoinTokenName bankParam) scAmt
               valueInBaseCurrency = scAmt * scRate
-              feesValue = getFeesAmount bankParam valueInBaseCurrency 
+              feesValue = getFeesAmount oldStateData valueInBaseCurrency 
               newBaseReserve = baseReserveAmount oldStateData + valueInBaseCurrency + feesValue
            in ( constraints,
                 oldStateData
@@ -148,7 +178,7 @@ stateWithConstraints bankParam oldStateData bankInputAction scRate rcRate= case 
         RedeemStableCoin scAmt ->
           let constraints = Constraints.mustForgeCurrency (policyScript oldStateData) (stableCoinTokenName bankParam) (negate scAmt)
               valueInBaseCurrency = scAmt * scRate
-              feesValue = getFeesAmount bankParam valueInBaseCurrency 
+              feesValue = getFeesAmount oldStateData valueInBaseCurrency 
               newBaseReserve = baseReserveAmount oldStateData - valueInBaseCurrency + feesValue
            in ( constraints,
                 oldStateData
@@ -156,6 +186,7 @@ stateWithConstraints bankParam oldStateData bankInputAction scRate rcRate= case 
                     baseReserveAmount = newBaseReserve
                   }
               )
+
 
 -- Get current equity i.e base reserve amount that is left after deducting liabilites
 {-# INLINEABLE calcEquity #-}
@@ -248,35 +279,39 @@ bankMachine bankParam = SM.StateMachine{
 --Validate current context of transition for the correct oracle value is used as input and its exchange rate matches with our input
 {-# INLINEABLE checkContext #-}
 checkContext :: BankParam -> CoinsMachineState -> BankInput -> ScriptContext -> Bool
-checkContext bankParam@BankParam{oracleAddr} oldBankState BankInput{oracleOutput} ctx = 
-  traceIfFalse "Invalid oracle use" isValidOracleUsed
+checkContext bankParam@BankParam{oracleAddr} oldBankState bankInput ctx = 
+  case bankInput of 
+    UpdateBankFee _ -> True -- Skip check context for update bank fee where oracle is not used already checked in transistion state
+    UpdateContractStatus _ -> True -- Skip check context for update contract status where oracle is not used already checked in transistion state
+    BankInput _ oracleOutput -> 
+      traceIfFalse "Invalid oracle use" isValidOracleUsed
 
-  where
-    (_, _, rate) = oracleOutput
+      where
+        (_, _, rate) = oracleOutput
 
-    info :: TxInfo
-    info = scriptContextTxInfo ctx
+        info :: TxInfo
+        info = scriptContextTxInfo ctx
 
-    oracleInput :: TxOut
-    oracleInput =
-      let
-        inputs = [ o
-              | i <- txInfoInputs info
-              , let o = txInInfoResolved i
-              , txOutAddress o == oracleAddr
-              ]
-      in
-        case inputs of
-            [o] -> o
-            _   -> traceError "expected exactly one oracle input during transistion check"
+        oracleInput :: TxOut
+        oracleInput =
+          let
+            inputs = [ o
+                  | i <- txInfoInputs info
+                  , let o = txInInfoResolved i
+                  , txOutAddress o == oracleAddr
+                  ]
+          in
+            case inputs of
+                [o] -> o
+                _   -> traceError "expected exactly one oracle input during transistion check"
 
-    oracleValue' = case oracleValue oracleInput (`findDatum` info) of
-      Nothing -> traceError "oracle value not found"
-      Just x  -> x
+        oracleValue' = case oracleValue oracleInput (`findDatum` info) of
+          Nothing -> traceError "oracle value not found"
+          Just x  -> x
 
-    -- Is rate provided in input is same as orcale value derived from oracle input of transaction
-    isValidOracleUsed :: Bool
-    isValidOracleUsed =  oracleValue' == rate
+        -- Is rate provided in input is same as orcale value derived from oracle input of transaction
+        isValidOracleUsed :: Bool
+        isValidOracleUsed =  oracleValue' == rate
 
 
 -- Terminate the state machine currently the state machine is to be running forever

@@ -73,7 +73,6 @@ bp = BankParam
             rcDefaultRate = 1,
             oracleParam = oracle,
             oracleAddr = oracleAddress oracle,
-            bankFee = 2 % 100,
             bankCurrencyAsset = Value.assetClass Ada.adaSymbol Ada.adaToken
             }
 
@@ -184,13 +183,13 @@ tests =
         --TODO improve on error testing to test specific log message of error
         checkPredicateOptions options "mint stablecoins try redeem more stablecoins than minted should fail"
         (  
-           assertContractError (coinsContract bp) (Trace.walletInstanceTag w2) (\_ -> True) "should throw insufficent funds"
+           assertContractError (coinsEndpoints bp) (Trace.walletInstanceTag w2) (\_ -> True) "should throw insufficent funds"
         )
         $ mintAndRedeemStableCoins 10 15
     ,
         checkPredicateOptions options "mint reserve coins try redeem more reserve coins than minted should fail"
         (  
-           assertContractError (coinsContract bp) (Trace.walletInstanceTag w2) (\_ -> True) "should throw insufficent funds"
+           assertContractError (coinsEndpoints bp) (Trace.walletInstanceTag w2) (\_ -> True) "should throw insufficent funds"
         )
         $
          mintAndRedeemReserveCoins 10 15
@@ -222,7 +221,7 @@ initialise = do
   Trace.callEndpoint @"update" oracleHdl 1
   void $ Trace.waitNSlots 10
 
-  hdl <- Trace.activateContractWallet w2 $ coinsContract bp
+  hdl <- Trace.activateContractWallet w2 $ coinsEndpoints bp
   
   let i = 1 :: Integer
   Trace.callEndpoint @"start" hdl i

@@ -83,6 +83,5 @@ runGuardedStepWith smc input userLookups guard = mapError (review _SMContractErr
                 pure $ Right $ TransitionSuccess ns
             Just a  -> pure $ Left a
     Left e -> do
-        logInfo @String "Here"
         pure $ Right $ TransitionFailure e
 
