@@ -29,6 +29,7 @@ import Ledger.Credential ( Credential(ScriptCredential) )
 import Ledger.Value
 import GHC.Show (Show)
 
+--TODO upgrade for plutus dependencies v1.0.8
 -- data TestCtxIn  =  PkhCtxIn (Address,Value) | ScriptCtxIn (ByteString,Value,Data) |ThisScripCtxIn(Value, Data,Data) deriving (Show)
 -- data TestCtxOut = PkhCtxOut (Address,Value) | ScriptCtxOut (ByteString,Value,Data) |ThisScripCtxOut(Value,Data) deriving (Show)
 
