@@ -117,7 +117,7 @@ transition bankParam@BankParam {oracleParam,oracleAddr} oldState@State {stateDat
                 scRate = calcStableCoinRate oldStateData rate
                 (newConstraints, newStateData) = stateWithConstraints bankParam oldStateData bankInputAction scRate rcRate
                 -- eitherValidState = shouldTransitToNextState bankParam newStateData rate
---TODO
+            --TODO Upgrade plutus dependecnies to support string in either part solve error for plc plugin
             -- guard (isRight eitherValidState)
             
             let state =
