@@ -37,7 +37,7 @@ import qualified Ledger as Interval
 import qualified Ledger.Ada as Ada
 import Ledger.Constraints (TxConstraints)
 import qualified Ledger.Constraints as Constraints
-import           Ledger.Scripts               (MonetaryPolicyHash)
+import           Ledger.Scripts               (MintingPolicyHash)
 import qualified Ledger.Typed.Scripts as Scripts
 import qualified Ledger.Value as Value
 import Playground.Contract (ToSchema, adaCurrency, ensureKnownCurrencies, printJson, printSchemas, stage)
@@ -85,14 +85,14 @@ transition bankParam@BankParam {oracleParam,oracleAddr} oldState@State {stateDat
         }
       )
     --Upate bank fee case can be handled directly without hadling cases for oracle requirement like minting
-    UpdateBankFee bankFeePercentValue ->
+    UpdateBankFee percentNumerator percentDenominator ->
       let constraints = Constraints.mustBeSignedBy (bankContractOwner bankParam)
       in pure (
         constraints,
         oldState {
           stateData = oldStateData
             {
-              bankFee = bankFeePercentValue % 100
+              bankFee = percentNumerator % percentDenominator
             }
         }
       )
@@ -108,17 +108,17 @@ transition bankParam@BankParam {oracleParam,oracleAddr} oldState@State {stateDat
                 oNftValue = txOutValue oTxOut 
                     <> Ada.lovelaceValueOf (oFee oracleParam)
 
-                oracleConstraints = Constraints.mustSpendScriptOutput oref (Redeemer $ PlutusTx.toData Use) <>
+                oracleConstraints = Constraints.mustSpendScriptOutput oref (Redeemer $ PlutusTx.toBuiltinData Use) <>
                                 Constraints.mustPayToOtherScript
                                   valHash
-                                  (Datum $ PlutusTx.toData rate)
+                                  (Datum $ PlutusTx.toBuiltinData rate)
                                   oNftValue
                 rcRate = calcReserveCoinRate bankParam oldStateData rate
                 scRate = calcStableCoinRate oldStateData rate
                 (newConstraints, newStateData) = stateWithConstraints bankParam oldStateData bankInputAction scRate rcRate
-                eitherValidState = shouldTransitToNextState bankParam newStateData rate
-
-            guard (isRight eitherValidState)
+                -- eitherValidState = shouldTransitToNextState bankParam newStateData rate
+--TODO
+            -- guard (isRight eitherValidState)
             
             let state =
                   State
@@ -133,9 +133,9 @@ transition bankParam@BankParam {oracleParam,oracleAddr} oldState@State {stateDat
                 state
               )
 
--- Calculate fees 
+-- Calculate fees by getting current fee ratio convert to percent by dividing by 100
 getFeesAmount :: CoinsMachineState -> Integer -> Integer
-getFeesAmount bankState amount = round ( (fromInteger amount) * (bankFee bankState) )
+getFeesAmount bankState amount = round ( (fromInteger amount) * (bankFee bankState) * (1%100) )
 
 -- Get state and contratins based on the input action called by the user
 --TODO Refactor common function inside minting and redeeming cases
@@ -143,7 +143,7 @@ getFeesAmount bankState amount = round ( (fromInteger amount) * (bankFee bankSta
 stateWithConstraints :: BankParam -> CoinsMachineState -> BankInputAction -> Integer -> Integer-> (TxConstraints Void Void, CoinsMachineState)
 stateWithConstraints bankParam oldStateData bankInputAction scRate rcRate= case bankInputAction of
         MintReserveCoin rcAmt ->
-          let constraints = Constraints.mustForgeCurrency (policyScript oldStateData) (reserveCoinTokenName bankParam) rcAmt
+          let constraints = Constraints.mustMintCurrency (policyScript oldStateData) (reserveCoinTokenName bankParam) rcAmt
               valueInBaseCurrency = rcAmt * rcRate
               feesValue = getFeesAmount oldStateData valueInBaseCurrency 
               newBaseReserve = baseReserveAmount oldStateData + valueInBaseCurrency + feesValue
@@ -154,7 +154,7 @@ stateWithConstraints bankParam oldStateData bankInputAction scRate rcRate= case 
                   }              
               )
         RedeemReserveCoin rcAmt ->
-          let constraints = Constraints.mustForgeCurrency (policyScript oldStateData) (reserveCoinTokenName bankParam) (negate rcAmt)
+          let constraints = Constraints.mustMintCurrency (policyScript oldStateData) (reserveCoinTokenName bankParam) (negate rcAmt)
               valueInBaseCurrency = rcAmt * rcRate
               feesValue = getFeesAmount oldStateData valueInBaseCurrency 
               newBaseReserve = baseReserveAmount oldStateData - valueInBaseCurrency + feesValue
@@ -165,7 +165,7 @@ stateWithConstraints bankParam oldStateData bankInputAction scRate rcRate= case 
                   }              
               )
         MintStableCoin scAmt ->
-          let constraints = Constraints.mustForgeCurrency (policyScript oldStateData) (stableCoinTokenName bankParam) scAmt
+          let constraints = Constraints.mustMintCurrency (policyScript oldStateData) (stableCoinTokenName bankParam) scAmt
               valueInBaseCurrency = scAmt * scRate
               feesValue = getFeesAmount oldStateData valueInBaseCurrency 
               newBaseReserve = baseReserveAmount oldStateData + valueInBaseCurrency + feesValue
@@ -176,7 +176,7 @@ stateWithConstraints bankParam oldStateData bankInputAction scRate rcRate= case 
                   }
               )
         RedeemStableCoin scAmt ->
-          let constraints = Constraints.mustForgeCurrency (policyScript oldStateData) (stableCoinTokenName bankParam) (negate scAmt)
+          let constraints = Constraints.mustMintCurrency (policyScript oldStateData) (stableCoinTokenName bankParam) (negate scAmt)
               valueInBaseCurrency = scAmt * scRate
               feesValue = getFeesAmount oldStateData valueInBaseCurrency 
               newBaseReserve = baseReserveAmount oldStateData - valueInBaseCurrency + feesValue
@@ -281,7 +281,7 @@ bankMachine bankParam = SM.StateMachine{
 checkContext :: BankParam -> CoinsMachineState -> BankInput -> ScriptContext -> Bool
 checkContext bankParam@BankParam{oracleAddr} oldBankState bankInput ctx = 
   case bankInput of 
-    UpdateBankFee _ -> True -- Skip check context for update bank fee where oracle is not used already checked in transistion state
+    UpdateBankFee _ _-> True -- Skip check context for update bank fee where oracle is not used already checked in transistion state
     UpdateContractStatus _ -> True -- Skip check context for update contract status where oracle is not used already checked in transistion state
     BankInput _ oracleOutput -> 
       traceIfFalse "Invalid oracle use" isValidOracleUsed

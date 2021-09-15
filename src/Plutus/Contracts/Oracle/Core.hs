@@ -25,6 +25,7 @@ module Plutus.Contracts.Oracle.Core
     , oracleAddress
     , OracleSchema
     , runOracle
+    , oracleContract
     , runMockOracle
     , findOracle
     , mkOracleValidator
@@ -80,7 +81,7 @@ oracleValue :: TxOut -> (DatumHash -> Maybe Datum) -> Maybe Integer
 oracleValue o f = do
     dh      <- txOutDatum o
     Datum d <- f dh
-    PlutusTx.fromData d
+    PlutusTx.fromBuiltinData d
 
 --Oracle validator for checking update and use of oracle value
 {-# INLINABLE mkOracleValidator #-}
@@ -146,11 +147,11 @@ oracleAddress :: Oracle -> Ledger.Address
 oracleAddress = scriptAddress . oracleValidator
 
 --Start oracle by first getting currecny symbol of nft to be used and make a oracle paramter using that currecny symbol
-startOracle :: forall w s. HasBlockchainActions s => Contract w s Text Oracle
+startOracle :: forall w s. Contract w s Text Oracle
 startOracle = do
     logInfo @Prelude.String $ "Starting oracle "
     pkh <- pubKeyHash <$> Contract.ownPubKey
-    osc <- mapError (pack . Prelude.show) (forgeContract pkh [(oracleTokenName, 1)] :: Contract w s CurrencyError OneShotCurrency)
+    osc <- mapError (pack . Prelude.show) (mintContract pkh [(oracleTokenName, 1)] :: Contract w s CurrencyError OneShotCurrency)
     let cs     = Currency.currencySymbol osc
         oracle = Oracle
             { oNftSymbol   = cs
@@ -163,7 +164,7 @@ startOracle = do
 --Endpoint to update oracle which is only allowed by owner of the oracle provider
 -- Find the oracle valie if nothing found then submit oracle value to oracle script
 -- Otherwise spent previous ouput and construct new utxo with new oracle value at oracle address
-updateOracle :: forall w s. HasBlockchainActions s => Oracle -> Integer -> Contract w s Text ()
+updateOracle :: forall w s. Oracle -> Integer -> Contract w s Text ()
 updateOracle oracle x = do
     m <- findOracle oracle
     let c = Constraints.mustPayToTheScript x $ assetClassValue (oracleNftAsset oracle) 1
@@ -176,13 +177,13 @@ updateOracle oracle x = do
             let lookups = Constraints.unspentOutputs (Map.singleton oref o)     <>
                           Constraints.typedValidatorLookups (oracleInst oracle) <>
                           Constraints.otherScript (oracleValidator oracle)
-                tx      = c <> Constraints.mustSpendScriptOutput oref (Redeemer $ PlutusTx.toData Update)
+                tx      = c <> Constraints.mustSpendScriptOutput oref (Redeemer $ PlutusTx.toBuiltinData Update)
             ledgerTx <- submitTxConstraintsWith @Oracling lookups tx
             awaitTxConfirmed $ txId ledgerTx
             logInfo @Prelude.String $ "updated oracle value to " ++ Prelude.show x
 
 -- Helper function to find oracle from list of utxos that are present at oracle address
-findOracle :: forall w s. HasBlockchainActions s => Oracle -> Contract w s Text (Maybe (TxOutRef, TxOutTx, Integer))
+findOracle :: forall w s. Oracle -> Contract w s Text (Maybe (TxOutRef, TxOutTx, Integer))
 findOracle oracle = do
     utxos <- Map.filter f <$> utxoAt (oracleAddress oracle)
     return $ case Map.toList utxos of
@@ -194,28 +195,34 @@ findOracle oracle = do
     f :: TxOutTx -> Bool
     f o = assetClassValueOf (txOutValue $ txOutTxOut o) (oracleNftAsset oracle) == 1
 
-type OracleSchema = BlockchainActions .\/ Endpoint "update" Integer
+type OracleSchema = Endpoint "update" Integer
+
+errorHandler :: Prelude.Show a => a -> Contract w s e ()
+errorHandler e = do
+    Contract.logError $ Prelude.show e
+
+oracleContract :: Contract (Last Oracle) OracleSchema Text ()
+oracleContract = handleError errorHandler runOracle
 
 --Contract for running oracle contract by first constructing a oracle paramter
 runOracle :: Contract (Last Oracle) OracleSchema Text ()
 runOracle = do
     oracle <- startOracle
     tell $ Last $ Just oracle
-    go oracle
+    awaitPromise $ go oracle
   where
-    go :: Oracle -> Contract (Last Oracle) OracleSchema Text a
-    go oracle = do
-        x <- endpoint @"update"
-        updateOracle oracle x
-        go oracle
+    go :: Oracle -> Promise (Last Oracle) OracleSchema Text ()
+    go oracle' = 
+        (endpoint @"update") $ \x -> do
+          updateOracle oracle' x
+          awaitPromise $ go oracle'
 
 --Run mock oracle to be used in test with default oracle provided form outside of contract
 runMockOracle :: Oracle -> Contract () OracleSchema Text ()
-runMockOracle oracle = do
-    go oracle
+runMockOracle oracle = 
+    handleError errorHandler $ awaitPromise (go oracle) >> runMockOracle oracle
   where
-    go :: Oracle -> Contract () OracleSchema Text a
-    go oracle' = do
-        x <- endpoint @"update"
-        updateOracle oracle' x
-        go oracle'
+    go :: Oracle -> Promise () OracleSchema Text ()
+    go oracle' = 
+        (endpoint @"update") $ \x -> do
+          updateOracle oracle' x

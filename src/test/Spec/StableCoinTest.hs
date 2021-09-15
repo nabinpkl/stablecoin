@@ -84,12 +84,12 @@ oValidatorAddress = oracleAddress oracle
 
 reserveCoinsValue :: BankParam -> Integer -> Value
 reserveCoinsValue bankParam@BankParam {reserveCoinTokenName} tokenAmount =
-  let mpHash = Scripts.forwardingMonetaryPolicyHash $ CoinsMachine.scriptInstance bankParam
+  let mpHash = Scripts.forwardingMintingPolicyHash $ CoinsMachine.scriptInstance bankParam
    in Value.singleton (Value.mpsSymbol mpHash) reserveCoinTokenName tokenAmount
 
 stableCoinsValue :: BankParam -> Integer -> Value
 stableCoinsValue bankParam@BankParam {stableCoinTokenName} tokenAmount =
-  let mpHash = Scripts.forwardingMonetaryPolicyHash $ CoinsMachine.scriptInstance bankParam
+  let mpHash = Scripts.forwardingMintingPolicyHash $ CoinsMachine.scriptInstance bankParam
    in Value.singleton (Value.mpsSymbol mpHash) stableCoinTokenName tokenAmount
 
 adaVal :: Integer -> Value
@@ -121,13 +121,6 @@ options =
                                 ]
 
     in defaultCheckOptions & emulatorConfig . Trace.initialChainState .~ Left initialDistribution
-
-
-emCfg :: Trace.EmulatorConfig
-emCfg = Trace.EmulatorConfig $ Left $ Map.fromList [(Wallet 1, v), (Wallet 2, v)]
- where
-  v :: Value
-  v = Ada.lovelaceValueOf 100_000_000
 
 tests :: TestTree
 tests =
@@ -194,6 +187,7 @@ tests =
         $
          mintAndRedeemReserveCoins 10 15
 
+--TODO Max reserve and min reserve, bank fee update status test
     
     ]
 

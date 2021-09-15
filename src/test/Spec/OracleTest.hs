@@ -44,7 +44,7 @@ import Plutus.Contracts.Coins.Types
 import Plutus.Contracts.Coins.Endpoints
 import Plutus.Contracts.Oracle.Core
 import qualified Data.Aeson.Types as Types
-import Utils.ValidatorTestFramework
+-- import Utils.ValidatorTestFramework
 
 oracleW1:: Wallet
 oracleW1 = Wallet 1
@@ -112,11 +112,11 @@ tests =
                 .&&. 
                 assertNoFailedTransactions
                 )
-          $ runOracleTrace,
+          $ runOracleTrace
         
-        execOracle "Can update oracle" (
-          builderRedeem Update (Ada.lovelaceValueOf 1) newOracleValue
-        )
+        -- execOracle "Can update oracle" (
+        --   builderRedeem Update (Ada.lovelaceValueOf 1) newOracleValue
+        -- )
     ]
 
 newOracleValue :: Integer
@@ -133,7 +133,7 @@ initialiseOracle = do
   void $ Trace.waitNSlots 10
   return oracleHdl
 
-checkOracle :: Oracle -> Contract () BlockchainActions Text ()
+checkOracle :: Oracle -> Contract () OracleSchema Text ()
 checkOracle oracle = do
     m <- findOracle oracle
     case m of
@@ -153,7 +153,7 @@ updateOracleTrace newValue = do
   void $ Trace.activateContract oracleW1 (checkOracle oracle) "checkOracle"
   void $ Trace.waitNSlots 10
 
-checkWalletHasOracleToken :: Oracle -> Contract () BlockchainActions Text ()
+checkWalletHasOracleToken :: Oracle -> Contract () OracleSchema Text ()
 checkWalletHasOracleToken Oracle{oNftSymbol}= do
     pk    <- ownPubKey
     utxos <- utxoAt $ pubKeyAddress pk
@@ -186,14 +186,14 @@ runOracleTrace = do
   void $ Trace.waitNSlots 10
 
 
-execOracle :: TestName-> TestContextBuilder -> TestTree
-execOracle testName  ctx = execOracleTimed testName ctx  always
+-- execOracle :: TestName-> TestContextBuilder -> TestTree
+-- execOracle testName  ctx = execOracleTimed testName ctx  always
 
-execOracleTimed :: TestName-> TestContextBuilder -> POSIXTimeRange -> TestTree
-execOracleTimed name ctx range =testCase name (executeSpendContext  _oracleValidator ctx range @?= True)
-  where
-    _oracleValidator d r ctx= case PlutusTx.fromData r of
-      Just redeemer -> case PlutusTx.fromData d of 
-                          Just dat -> mkOracleValidator oracle dat redeemer ctx
-                          _ -> False
-      _     -> False
+-- execOracleTimed :: TestName-> TestContextBuilder -> POSIXTimeRange -> TestTree
+-- execOracleTimed name ctx range =testCase name (executeSpendContext  _oracleValidator ctx range @?= True)
+--   where
+--     _oracleValidator d r ctx= case PlutusTx.fromData r of
+--       Just redeemer -> case PlutusTx.fromData d of 
+--                           Just dat -> mkOracleValidator oracle dat redeemer ctx
+--                           _ -> False
+--       _     -> False

@@ -41,7 +41,7 @@ import           Data.Aeson                             (FromJSON, ToJSON)
 import           GHC.Generics                            (Generic)
 import qualified Prelude
 import           PlutusTx.Ratio as Ratio
-import           Ledger.Scripts               (MonetaryPolicyHash)
+import           Ledger.Scripts               (MintingPolicyHash)
 import           Ledger.Value                 (TokenName (TokenName))
 import           Plutus.Contracts.Oracle.Core
 import qualified PlutusTx                      as PlutusTx
@@ -60,7 +60,7 @@ data CoinsMachineState = CoinsMachineState
   { baseReserveAmount :: Integer, -- Current amount of ada reserves held in contract
     stableCoinAmount :: Integer, -- Current amount of stable coins in circulation
     reserveCoinAmount :: Integer, -- Current amount of reserve coins in circulation
-    policyScript :: MonetaryPolicyHash, -- Policy script used for minting of coins
+    policyScript :: MintingPolicyHash, -- Policy script used for minting of coins
     bankFee :: Ratio Integer, -- Fees charged by contract to contirbute some portion of forged amount to kept in reserve,
                               -- Used as state so that it can be changed by smart contract owner or starter Not hardcoded into contract param
     contractStatus :: ContractStatus
@@ -96,7 +96,7 @@ type OracleOutput = (TxOutRef, TxOut, Integer)
 
 -- Redeemer input for updating the state of the contract
 data BankInput = BankInput BankInputAction OracleOutput 
-                | UpdateBankFee Integer 
+                | UpdateBankFee Integer Integer
                 | UpdateContractStatus Bool
 
   deriving stock (Generic, Prelude.Show)
@@ -111,9 +111,11 @@ data EndpointInput = EndpointInput
   deriving anyclass (ToJSON, FromJSON, ToSchema)
 
 --Data used from the endpoint to be used as input of contract definitions
+--To support float percentage 
 data BankFeeInput = BankFeeInput
   { 
-    percentIntValue :: Integer -- Numerator value of percent in integer eg: 1 Percent
+    percentNumerator :: Integer, -- Numerator value of percent in integer eg: 1 Percent
+    percentDenominator :: Integer -- Numerator value of percent in integer eg: 1 Percent
   }
   deriving stock (Generic)
   deriving anyclass (ToJSON, FromJSON, ToSchema)
