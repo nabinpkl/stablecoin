@@ -115,10 +115,13 @@ oracleToken =
 -- | 'CheckOptions' that inclues 'oracletoken' in the initial distribution of wallet 1.
 options :: CheckOptions
 options =
+    --let initialDistribution = defaultDist & over (at (Wallet 1) . _Just) ((<>) oracleToken)
+
     let initialDistribution = Map.fromList
                                 [ (oracleW1, initialAdaValue <> oracleToken)
                                   , (w2, initialAdaValue)
                                 ]
+
 
     in defaultCheckOptions & emulatorConfig . Trace.initialChainState .~ Left initialDistribution
 
@@ -137,10 +140,10 @@ tests =
       checkPredicateOptions options "mint stablecoins"
           ( 
             (valueAtAddress coinsMachineAddress (== (adaVal 100)))
-              .&&. 
+              .&&.
               assertNoFailedTransactions
-              .&&. walletFundsChange w2 ((stableCoinsValue bp 100) <> (negate (adaVal 100)) 
-              -- <> 
+              .&&. walletFundsChange w2 ((stableCoinsValue bp 100) <> (negate (adaVal 100))
+              -- <>
               -- (negate oracleFee)
               )
           )
@@ -149,32 +152,32 @@ tests =
       checkPredicateOptions options "mint reservecoins"
         ( (valueAtAddress coinsMachineAddress (== (adaVal 100)))
             .&&. assertNoFailedTransactions
-            .&&. walletFundsChange w2 ((reserveCoinsValue bp 100) <> (negate (adaVal 100)) 
-            -- <> 
+            .&&. walletFundsChange w2 ((reserveCoinsValue bp 100) <> (negate (adaVal 100))
+            -- <>
             -- (negate oracleFee)
             )
         )
         $ mintReserveCoins 100
-        
+
         --Mint 10 stable coin, redeem 5 stable coin
-        -- So value at coinsMachineAddress is 5 and user also have  
+        -- So value at coinsMachineAddress is 5 and user also have
         -- 5 stable coins and only 5 ada is cutoff at final wallet balances with rate 1:1
     ,   -- Oracle fee * 2 as double fee is required for minting and redeeming
       checkPredicateOptions options "mint stablecoins redeem stablecoins"
         ( ( valueAtAddress coinsMachineAddress (== (adaVal 5)))
             .&&. assertNoFailedTransactions
-            .&&. walletFundsChange w2 ((stableCoinsValue bp 5) <> (negate (adaVal 5)) 
-            -- <> 
+            .&&. walletFundsChange w2 ((stableCoinsValue bp 5) <> (negate (adaVal 5))
+            -- <>
             -- (negate (oracleFeeMultiply 2))
             )
         )
         $ mintAndRedeemStableCoins 10 5
-    ,    
+    ,
       checkPredicateOptions options "mint reservecoins redeem reservecoins"
         ( ( valueAtAddress coinsMachineAddress (== (adaVal 5)))
             .&&. assertNoFailedTransactions
-            .&&. walletFundsChange w2 ((reserveCoinsValue bp 5) <> (negate (adaVal 5)) 
-            -- <> 
+            .&&. walletFundsChange w2 ((reserveCoinsValue bp 5) <> (negate (adaVal 5))
+            -- <>
             -- (negate (oracleFeeMultiply 2))
             )
         )
@@ -182,19 +185,19 @@ tests =
     ,
         --TODO improve on error testing to test specific log message of error
         checkPredicateOptions options "mint stablecoins try redeem more stablecoins than minted should fail"
-        (  
+        (
            assertContractError (coinsContract bp) (Trace.walletInstanceTag w2) (\_ -> True) "should throw insufficent funds"
         )
         $ mintAndRedeemStableCoins 10 15
     ,
         checkPredicateOptions options "mint reserve coins try redeem more reserve coins than minted should fail"
-        (  
+        (
            assertContractError (coinsContract bp) (Trace.walletInstanceTag w2) (\_ -> True) "should throw insufficent funds"
         )
         $
          mintAndRedeemReserveCoins 10 15
 
-    
+
     ]
 
 newOracleValue :: Integer
@@ -253,7 +256,7 @@ callReserveMintEndpoint tokenAmount hdl = do
   Trace.callEndpoint @"mintReserveCoin"
     hdl
     EndpointInput
-      { 
+      {
         tokenAmount = tokenAmount
       }
   void $ Trace.waitNSlots 2

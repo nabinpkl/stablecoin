@@ -75,7 +75,7 @@ transition bankParam@BankParam {oracleParam,oracleAddr} State {stateData = oldSt
     Nothing -> traceError "Invalid oracle validator hash"
     Just valHash-> do
       let (oref, oTxOut, rate) = oracleOutput
-          oNftValue = txOutValue oTxOut 
+          oNftValue = txOutValue oTxOut
       -- <>       Ada.lovelaceValueOf (oFee oracleParam)
           oracleConstraints = Constraints.mustSpendScriptOutput oref (Redeemer $ PlutusTx.toData Use) <>
                           Constraints.mustPayToOtherScript
@@ -88,7 +88,7 @@ transition bankParam@BankParam {oracleParam,oracleAddr} State {stateData = oldSt
           eitherValidState = shouldTransitToNextState bankParam newStateData rate
 
       guard (isRight eitherValidState)
-      
+
       let state =
             State
               { stateData = newStateData,
@@ -102,7 +102,7 @@ transition bankParam@BankParam {oracleParam,oracleAddr} State {stateData = oldSt
           state
         )
 
--- stableCoinFees:: 
+-- stableCoinFees::
 
 -- reserveCoinFees::
 
