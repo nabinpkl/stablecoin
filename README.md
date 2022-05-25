@@ -1,6 +1,6 @@
-# Plutus Platform starter project
+# Plutus Platform stable coin project
 
-This project gives a simple starter project for using the Plutus Platform.
+This project gives a simple starter project for using the Plutus Platform for stable coin.
 
 ## Setting up
 
